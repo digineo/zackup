@@ -1,0 +1,33 @@
+---
+ssh:
+  user: root
+  port: 22
+  identity_file: /etc/zackup/id_rsa.pub
+
+rsync:
+  included:
+  - /etc
+  - /home
+  - /opt
+  - /root
+  - /srv
+  - /usr/local/etc
+  - /var/spool/cron
+  - /var/www
+  excluded:
+  - tmp
+  - '*.log'
+  - '*.log.*'
+  - .cache
+  - .config
+  args:
+  - --numeric-ids
+  - --perms
+  - --owner
+  - --group
+  - --devices
+  - --specials
+  - --links
+  - --hard-links
+  - --block-size=2048
+  - --recursive

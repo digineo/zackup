@@ -1,0 +1,6 @@
+---
+parallel:     5
+root_dataset: zpool/zackup
+mount_base:   /tmp/zackup
+log_level:    debug
+graylog:      ~

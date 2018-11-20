@@ -1,0 +1,9 @@
+---
+pre_script: |
+  # comment
+  echo example.com pre
+
+  date +%n
+
+post_script: |
+  echo example.com post

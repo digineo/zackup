@@ -1,0 +1,2 @@
+pre_script: |
+  echo test.example.org pre inline

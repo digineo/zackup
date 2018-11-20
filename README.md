@@ -82,8 +82,7 @@ It is recommended to create a compressed ZFS dataset for all backups:
 # zfs create -o compression=lz4 zpool/zackup
 ```
 
-and add `$zpool/zackup` as `root_dataset` to the service configuration
-file.
+and add `zpool/zackup` as `root_dataset` to the service configuration file.
 
 
 ## Service config
