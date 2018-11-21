@@ -4,3 +4,7 @@ root_dataset: zpool/zackup
 mount_base:   /tmp/zackup
 log_level:    debug
 graylog:      ~
+
+daemon:
+  schedule:   05:30:00
+  jitter:     40m

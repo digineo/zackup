@@ -41,15 +41,6 @@ type tree struct {
 	sync.RWMutex
 }
 
-// ServiceConfig represents application-level config options.
-type ServiceConfig struct {
-	Parallel    uint8  `yaml:"parallel"`
-	RootDataset string `yaml:"root_dataset"`
-	MountBase   string `yaml:"mount_base"`
-	LogLevel    string `yaml:"log_level"`
-	Graylog     string `yaml:"graylog"`
-}
-
 // NewTree returns an empty Tree
 func NewTree(root string) Tree {
 	return &tree{root: root}
