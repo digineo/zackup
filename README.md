@@ -96,6 +96,18 @@ root_dataset: string    # base dataset to create host-datasets under
 mount_base:   path      # working directory to mount host dataset into
 log_level:    enum      # one of DEBUG, INFO, WARN, ERROR, FATAL, PANIC (case insensitive)
 graylog:      addr      # if set, write logs to this GELF UDP endpoint
+
+# daemon hold settings specific to the "zackup serve" command.
+daemon:
+  # strftime format for scheduled backups
+  schedule:   "%H:%M:%S"
+
+  # Random amount of jitter around the schedule time. The actual backup
+  # will start in the time range schedule ± jitter/2. jitter must be
+  # parsable with Go's time.ParseDuration() function.
+  #
+  # Jitter is applied to each host seperately.
+  jitter:     duration
 ```
 
 The defaults are:
@@ -105,6 +117,9 @@ parallel:     5
 root_dataset: zpool
 mount_base:   /var/zackup
 log_level:    info
+daemon:
+  schedule:   "04:00:00"
+  jitter:     "40m" # → between 03:40:00 and 04:20:00
 ```
 
 

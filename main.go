@@ -45,5 +45,8 @@ func main() {
 		} else {
 			queue.Resize(int(svc.Parallel))
 		}
+
+		app.RootDataset = svc.RootDataset
+		app.MountBase = svc.MountBase
 	})
 }
