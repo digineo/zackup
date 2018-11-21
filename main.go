@@ -4,6 +4,7 @@ import (
 	"os"
 	"time"
 
+	"git.digineo.de/digineo/zackup/app"
 	"git.digineo.de/digineo/zackup/cmd"
 	"git.digineo.de/digineo/zackup/config"
 	"git.digineo.de/digineo/zackup/graylog"
@@ -15,6 +16,8 @@ import (
 var (
 	log = logrus.WithField("prefix", "main")
 	gl  = graylog.NewMiddleware("zackup")
+
+	queue app.Queue
 )
 
 func main() {
@@ -36,5 +39,11 @@ func main() {
 
 		gl.SetLevel(svc.LogLevel)
 		gl.SetEndpoint(svc.Graylog)
+
+		if queue == nil {
+			queue = app.NewQueue(int(svc.Parallel))
+		} else {
+			queue.Resize(int(svc.Parallel))
+		}
 	})
 }
