@@ -208,3 +208,14 @@ rsync:
 # pre_script:  # empty
 # post_script: # empty
 ```
+
+# Copyright
+
+Copyright (C) 2018-2019 Dominik Menke, Digineo GmbH. All rights reserved.
+
+Contains ported code of BackupPC, Copyright (C) 2001-2018 Craig Barret.
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License.
+
+See the LICENSE file.

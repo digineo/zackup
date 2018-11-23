@@ -1,12 +1,10 @@
 package app
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	osexec "os/exec"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"git.digineo.de/digineo/zackup/config"
@@ -50,18 +48,24 @@ func PerformBackup(host string, job *config.JobConfig) {
 		return
 	}
 
+	m := newSSHMaster(host, job.SSH.Port, job.SSH.User)
+	if err = m.connect(); err != nil {
+		return
+	}
+	defer m.close()
+
 	if script := job.PreScript.Lines(); len(script) > 0 {
-		if err = ssh(host, job.SSH.User, job.SSH.Port, script); err != nil {
+		if err = m.execute(script); err != nil {
 			return
 		}
 	}
 
-	if err = rsync(host, job.RSync.Included, job.RSync.Excluded, job.RSync.Arguments); err != nil {
+	if err = m.rsync(job.RSync.Included, job.RSync.Excluded, job.RSync.Arguments); err != nil {
 		return
 	}
 
 	if script := job.PostScript.Lines(); len(script) > 0 {
-		if err = ssh(host, job.SSH.User, job.SSH.Port, script); err != nil {
+		if err = m.execute(script); err != nil {
 			return
 		}
 	}
@@ -88,78 +92,6 @@ func (ds *dataset) snapshot() error {
 		return errors.Wrapf(err, "failed to zfs snapshot %q", name)
 	}
 	return nil
-}
-
-// echo script | ssh -l user -p port host /bin/sh -esx
-func ssh(host, user string, port uint16, script []string) error {
-	args := []string{
-		"-l", user,
-		"-p", strconv.Itoa(int(port)),
-		host,
-		"/bin/sh", "-esx",
-	}
-	cmd := osexec.Command("ssh", args...)
-
-	f := logrus.Fields{
-		"prefix":  "ssh",
-		"command": append([]string{"ssh"}, args...),
-	}
-
-	var o, e bytes.Buffer
-	cmd.Stdout = &o
-	cmd.Stderr = &e
-
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		f[logrus.ErrorKey] = err
-		log.WithFields(f).Error("could not get stdin")
-		return err
-	}
-	defer stdin.Close()
-
-	if err = cmd.Start(); err != nil {
-		f[logrus.ErrorKey] = err
-		f["stdout"] = o.String()
-		f["stderr"] = e.String()
-		log.WithFields(f).Error("failed to start process")
-		return err
-	}
-
-	in := bufio.NewWriter(stdin)
-	for _, l := range script {
-		if _, err = in.WriteString(l + "\n"); err != nil {
-			f[logrus.ErrorKey] = err
-			f["stdout"] = o.String()
-			f["stderr"] = e.String()
-			f["current-line"] = l
-			log.WithFields(f).Error("failed to send script line")
-			return err
-		}
-
-		if err = in.Flush(); err != nil {
-			f[logrus.ErrorKey] = err
-			f["stdout"] = o.String()
-			f["stderr"] = e.String()
-			f["current-line"] = l
-			log.WithFields(f).Error("failed to execute script line")
-			return err
-		}
-	}
-	stdin.Close()
-
-	if err = cmd.Wait(); err != nil {
-		f[logrus.ErrorKey] = err
-		f["stdout"] = o.String()
-		f["stderr"] = e.String()
-		log.WithFields(f).Error("script failed")
-		return err
-	}
-	return nil
-}
-
-//
-func rsync(host string, included, excluded, args []string) error {
-	panic("TODO")
 }
 
 func zfs(args ...string) error {
