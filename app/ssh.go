@@ -5,13 +5,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	osexec "os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 
+	"git.digineo.de/digineo/zackup/config"
 	"github.com/sirupsen/logrus"
 )
 
@@ -20,10 +21,13 @@ type sshMaster struct {
 	user string
 	port uint16
 
-	mu          *sync.Mutex     // lock for start/stop
-	wg          *sync.WaitGroup // for execute/rsync
-	controlPath string          // SSH multiplexing socket
-	tunnel      *osexec.Cmd     // foreground SSH process
+	controlPath string // SSH multiplexing socket
+	mountPath   string // join(RootDataset, host)
+
+	tunnel *osexec.Cmd     // foreground SSH process
+	wg     *sync.WaitGroup // for execute/rsync
+
+	mu *sync.Mutex // lock for start/stop
 }
 
 func newSSHMaster(host string, port uint16, user string) *sshMaster {
@@ -32,7 +36,8 @@ func newSSHMaster(host string, port uint16, user string) *sshMaster {
 		user: user,
 		port: port,
 
-		controlPath: filepath.Join(RootDataset, host, ".sshctrl"),
+		controlPath: filepath.Join(RootDataset, ".zackup", ".%h_%C"),
+		mountPath:   filepath.Join(RootDataset, host),
 
 		mu: &sync.Mutex{},
 		wg: &sync.WaitGroup{},
@@ -164,86 +169,72 @@ func (c *sshMaster) execute(script []string) error {
 }
 
 // rsync -e 'ssh -oControlPath=...' ...
-func (c *sshMaster) rsync(included, excluded, rargs []string) error {
+func (c *sshMaster) rsync(r *config.RsyncConfig) error {
 	c.wg.Add(1)
 	defer c.wg.Done()
 
-	args := append(rargs, "-e", fmt.Sprintf("ssh -S %s -p %d -x", c.controlPath, c.port))
-	args = append(args, rsyncFilter(included, excluded)...)
-	args = append(args, fmt.Sprintf("%s@%s", c.user, c.host))
+	l := log.WithFields(logrus.Fields{
+		"prefix": "ssh.rsync",
+		"host":   c.host,
+	})
+
+	args := r.BuildArgVector(
+		/* ssh */ fmt.Sprintf("ssh -S %s -p %d -x", c.controlPath, c.port),
+		/* src */ fmt.Sprintf("%s@%s:", c.user, c.host),
+		/* dst */ c.mountPath,
+	)
+
 	cmd := osexec.Command("rsync", args...)
 
+	done, wg, err := captureOutput(l, cmd)
+	if err != nil {
+		return err
+	}
+	defer done()
+
+	l.WithField("args", args).Info("Starting rsync")
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	wg.Wait()
+	if err := cmd.Wait(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-// rsyncFilter builds filter arguments for rsync. This is modelled after BackupPC:
-// https://github.com/backuppc/backuppc/blob/master/lib/BackupPC/Xfer/Rsync.pm#L234
-//
-// Original comments are marked as quote ("//>").
-//
-// TODO: could be simplified.
-func rsyncFilter(included, excluded []string) (list []string) {
-	//> If the user wants to just include /home/craig, then we need to do create
-	//> include/exclude pairs at each level:
-	//>
-	//>     --include /home --exclude /*
-	//>     --include /home/craig --exclude /home/*
-	//>
-	//> It's more complex if the user wants to include multiple deep paths. For
-	//> example, if they want /home/craig and /var/log, then we need this mouthfull:
-	//>
-	//>     --include /home --include /var --exclude /*
-	//>     --include /home/craig --exclude /home/*
-	//>     --include /var/log --exclude /var/*
-	//>
-	//> To make this easier we do all the includes first and all of the excludes at
-	//> the end (hopefully they commute).
-	var inc, exc []string
-	incDone := make(map[string]struct{})
-	excDone := make(map[string]struct{})
+func captureOutput(log *logrus.Entry, cmd *osexec.Cmd) (func(), *sync.WaitGroup, error) {
+	wg := &sync.WaitGroup{}
 
-	for _, incl := range included {
-		file := filepath.Clean("/" + incl)
-		if file == "/" {
-			//> This is a special case: if the user specifies
-			//> "/" then just include it and don't exclude "/*".
-			if _, ok := incDone[file]; !ok {
-				inc = append(inc, file)
-			}
-			continue
+	capture := func(name string, r io.Reader) {
+		caplog := log.WithField("stream", name)
+		s := bufio.NewScanner(r)
+		for s.Scan() {
+			caplog.Info(s.Text())
 		}
-
-		var f string
-		elems := strings.Split(file[1:], "/")
-		for _, elem := range elems {
-			if elem == "" {
-				//> preserve a tailing slash
-				elem = "/"
-			}
-
-			fs := f + "/*"
-			if _, ok := excDone[fs]; !ok {
-				exc = append(exc, fs)
-				excDone[fs] = struct{}{}
-			}
-
-			f += "/" + elem
-			if _, ok := incDone[f]; !ok {
-				inc = append(inc, f)
-				incDone[f] = struct{}{}
-			}
+		if err := s.Err(); err != nil {
+			caplog.WithError(err).Error("unexpected end of stream")
 		}
+		wg.Done()
 	}
 
-	for _, f := range inc {
-		list = append(list, "--include="+f)
-	}
-	for _, f := range exc {
-		list = append(list, "--exclude="+f)
-	}
-	for _, f := range excluded {
-		//> just append additional exclude lists onto the end
-		list = append(list, "--exclude="+f)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		stdout.Close()
+		return nil, nil, err
+	}
+
+	go capture("stdout", stdout)
+	go capture("stderr", stderr)
+
+	return func() {
+		stderr.Close()
+		stdout.Close()
+	}, wg, nil
 }

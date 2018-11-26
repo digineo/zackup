@@ -12,16 +12,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var (
-	// RootDataset is the name of the ZFS dataset under which zackup
-	// creates per-host datasets.
-	RootDataset = "zpool"
-
-	// MountBase is the name of the directory which zackup uses to
-	// mount per-host datasets for rsync.
-	MountBase = "/zackup"
-)
-
 type dataset struct {
 	Host  string
 	Mount string
@@ -60,7 +50,7 @@ func PerformBackup(host string, job *config.JobConfig) {
 		}
 	}
 
-	if err = m.rsync(job.RSync.Included, job.RSync.Excluded, job.RSync.Arguments); err != nil {
+	if err = m.rsync(job.RSync); err != nil {
 		return
 	}
 

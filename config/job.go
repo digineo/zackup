@@ -3,23 +3,15 @@ package config
 // JobConfig holds config settings for a single backup job.
 type JobConfig struct {
 	SSH   *sshConfig   `yaml:"ssh"`
-	RSync *rsyncConfig `yaml:"rsync"`
+	RSync *RsyncConfig `yaml:"rsync"`
 
 	PreScript  Script `yaml:"pre_script"`  // from yaml file
 	PostScript Script `yaml:"post_script"` // from yaml file
-
 }
 
 type sshConfig struct {
-	User     string `yaml:"user"`
-	Port     uint16 `yaml:"port"`
-	Identity string `yaml:"identity_file"`
-}
-
-type rsyncConfig struct {
-	Included  []string `yaml:"included"`
-	Excluded  []string `yaml:"excluded"`
-	Arguments []string `yaml:"args"`
+	User string `yaml:"user"`
+	Port uint16 `yaml:"port"`
 }
 
 func (j *JobConfig) mergeGlobals(globals *JobConfig) {
@@ -34,9 +26,6 @@ func (j *JobConfig) mergeGlobals(globals *JobConfig) {
 			if tmp := globals.SSH.Port; tmp != 0 {
 				j.SSH.Port = tmp
 			}
-			if tmp := globals.SSH.Identity; tmp != "" {
-				j.SSH.Identity = tmp
-			}
 		}
 	}
 
@@ -45,8 +34,15 @@ func (j *JobConfig) mergeGlobals(globals *JobConfig) {
 			dup := *globals.RSync
 			j.RSync = &dup
 		} else {
-			j.RSync.Included = append(j.RSync.Included, globals.RSync.Included...)
-			j.RSync.Excluded = append(j.RSync.Excluded, globals.RSync.Excluded...)
+			if !j.RSync.OverrideGlobalInclude {
+				j.RSync.Included = append(j.RSync.Included, globals.RSync.Included...)
+			}
+			if !j.RSync.OverrideGlobalExclude {
+				j.RSync.Excluded = append(j.RSync.Excluded, globals.RSync.Excluded...)
+			}
+			if !j.RSync.OverrideGlobalArguments {
+				j.RSync.Arguments = append(j.RSync.Arguments, globals.RSync.Arguments...)
+			}
 		}
 	}
 

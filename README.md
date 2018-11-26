@@ -149,12 +149,18 @@ A host's config file is written in YAML and has this structure:
 ssh:
   user: string        # username on the remote host
   port: uint16        # SSH port number
-  identity_file: path # path (on localhost) to SSH identity file (private key)
 
 rsync:
   included: []string  # rsync pattern for included files/directories
   excluded: []string  # rsync pattern for excluded files/directories
   args:     []string  # other rsync arguments
+
+  # included, excluded and args will be merged with the global config
+  # by default. if you want a fresh start, without globally defined
+  # values, uncomment the corresponding entry:
+  #override_global_included: true
+  #override_global_excluded: true
+  #override_global_args:     true
 
 # Inline scripts executed on the remote host before and after rsyncing,
 # and before any `pre.*.sh` and/or `post.*.sh` scripts for this host.
@@ -165,7 +171,7 @@ post_script: string
 
 ## Global config
 
-zackup looks for a global config file in `ROOT_DIR/global.yml`.
+zackup looks for a global config file in `ROOT_DIR/globals.yml`.
 
 Use this file to specify defaults (a single host's config is basically
 merged into the global config). zackup brings no defaults (not even for
@@ -175,8 +181,6 @@ rsync!), but you can use this as a start:
 ssh:
   user: root
   port: 22
-  identity_file: /etc/zackup/id_rsa.pub
-
 rsync:
   included:
   - /etc
@@ -188,25 +192,22 @@ rsync:
   - /var/spool/cron
   - /var/www
   excluded:
-  - tmp
-  - *.log
-  - *.log.*
-  - .cache
-  - .config
+  - "tmp"
+  - "*.log"
+  - "*.log.*"
+  - ".cache"
+  - ".config"
   args:
-  - --numeric-ids
-  - --perms
-  - --owner
-  - --group
-  - --devices
-  - --specials
-  - --links
-  - --hard-links
-  - --block-size=2048
-  - --recursive
-
-# pre_script:  # empty
-# post_script: # empty
+  - "--numeric-ids"
+  - "--perms"
+  - "--owner"
+  - "--group"
+  - "--devices"
+  - "--specials"
+  - "--links"
+  - "--hard-links"
+  - "--block-size=2048"
+  - "--recursive"
 ```
 
 # Copyright
