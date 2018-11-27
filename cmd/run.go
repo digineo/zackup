@@ -1,19 +1,40 @@
 package cmd
 
 import (
-	"fmt"
-
+	"git.digineo.de/digineo/zackup/app"
 	"github.com/spf13/cobra"
 )
+
+var queue app.Queue
+
+// ResizeQueue resizes the queue's worker pool.
+func ResizeQueue(size int) {
+	if queue == nil {
+		queue = app.NewQueue(size)
+	} else {
+		queue.Resize(size)
+	}
+}
 
 // runCmd represents the run command
 var runCmd = &cobra.Command{
 	Use:   "run [host [...]]",
 	Short: "Creates backups and stores them in a local per-host ZFS dataset",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("run called")
+		if len(args) == 0 {
+			args = tree.Hosts()
+		}
+
+		for _, host := range args {
+			job := tree.Host(host)
+			if job == nil {
+				log.WithField("host", host).Warn("unknown host, ignoring")
+				continue
+			}
+			queue.Enqueue(job)
+		}
+		queue.Wait()
 	},
-	// Args, ValidArgs setup in initConfig
 }
 
 func init() {
