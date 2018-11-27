@@ -15,7 +15,6 @@ type ServiceConfig struct {
 	RootDataset string `yaml:"root_dataset"`
 	MountBase   string `yaml:"mount_base"`
 	LogLevel    string `yaml:"log_level"`
-	Graylog     string `yaml:"graylog"`
 
 	Daemon struct {
 		Schedule schedule `yaml:"schedule"`

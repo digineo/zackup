@@ -1,10 +1,10 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	"git.digineo.de/digineo/zackup/config"
+	"git.digineo.de/digineo/zackup/graylog"
 	"github.com/digineo/goldflags"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -16,6 +16,9 @@ var (
 	tree         = config.NewTree("")
 	treeRoot     = config.DefaultRoot
 	treeCallback func(config.Tree)
+
+	gl         = graylog.NewMiddleware("zackup")
+	glEndpoint string
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -29,7 +32,7 @@ var rootCmd = &cobra.Command{
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 //
 // The (optional) callback function is called once the config tree was (re-) loaded.
-func Execute(callback func(config.Tree)) {
+func Execute(callback func(config.Tree)) func() {
 	if callback != nil && treeCallback == nil {
 		treeCallback = callback
 	}
@@ -37,15 +40,26 @@ func Execute(callback func(config.Tree)) {
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
+
+	return func() {
+		if glEndpoint != "" {
+			gl.Flush()
+		}
+	}
 }
 
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVarP(&treeRoot, "root", "r", treeRoot, "config root directory")
+	rootCmd.PersistentFlags().StringVarP(&glEndpoint, "gelf", "l", glEndpoint, "GELF endpoint (Graylog remote logging)")
 }
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
+	if glEndpoint != "" {
+		logrus.AddHook(gl)
+	}
+
 	if treeRoot == "" {
 		if envRoot := os.Getenv("ZACKUP_ROOT"); envRoot != "" {
 			treeRoot = envRoot

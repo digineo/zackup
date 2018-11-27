@@ -15,7 +15,7 @@ Small utility to replace BackupPC.
 
 ## Usage
 
-    zackup [COMMAND] [--root ROOT_DIR]
+    zackup [COMMAND] [--root ROOT_DIR] [--gelf host:port]
 
 Instead of `--root`, you may set a `ZACKUP_ROOT` environment variable.
 The command line flag takes precedence if both are given.
@@ -23,6 +23,8 @@ The command line flag takes precedence if both are given.
     export ZACKUP_ROOT=ROOT_DIR
     zackup [COMMAND]
 
+Use something like `--gelf graylog.example.com:12201` to direct log
+messages to a remote logging server.
 
 ### `COMMAND`
 
