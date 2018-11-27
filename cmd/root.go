@@ -14,7 +14,7 @@ var (
 	log = logrus.WithField("prefix", "commands")
 
 	tree         = config.NewTree("")
-	treeRoot     string
+	treeRoot     = config.DefaultRoot
 	treeCallback func(config.Tree)
 )
 
@@ -41,8 +41,7 @@ func Execute(callback func(config.Tree)) {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVar(&treeRoot, "root", "",
-		fmt.Sprintf("config root directory (default %q)", config.DefaultRoot))
+	rootCmd.PersistentFlags().StringVarP(&treeRoot, "root", "r", treeRoot, "config root directory")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -53,9 +52,11 @@ func initConfig() {
 		}
 	}
 
+	l := log.WithField("root", treeRoot)
 	if err := tree.SetRoot(treeRoot); err != nil {
-		log.Fatalf("failed to read config tree: %v", err)
+		log.WithError(err).Fatalf("failed to read config tree")
 	}
+	l.Info("config tree read")
 
 	if treeCallback != nil {
 		treeCallback(tree)

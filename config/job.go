@@ -2,6 +2,8 @@ package config
 
 // JobConfig holds config settings for a single backup job.
 type JobConfig struct {
+	host string `yaml:"-"`
+
 	SSH   *sshConfig   `yaml:"ssh"`
 	RSync *RsyncConfig `yaml:"rsync"`
 
@@ -12,6 +14,11 @@ type JobConfig struct {
 type sshConfig struct {
 	User string `yaml:"user"`
 	Port uint16 `yaml:"port"`
+}
+
+// Host returns the hostname for this job.
+func (j *JobConfig) Host() string {
+	return j.host
 }
 
 func (j *JobConfig) mergeGlobals(globals *JobConfig) {

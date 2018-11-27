@@ -11,15 +11,15 @@ var statusCmd = &cobra.Command{
 	Short: "Prints a list of hosts and their backup status (last success, size)",
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
-			args = tree.Hosts()
+			log.WithField("hosts", tree.Hosts()).
+				Info("dumping list of hosts")
+			return
 		}
-
 		for _, host := range args {
 			job := tree.Host(host)
-			pp.Println(host, job)
+			pp.Println(job)
 		}
 	},
-	// Args, ValidArgs setup in initConfig
 }
 
 func init() {

@@ -27,7 +27,8 @@ func newDataset(host string) *dataset {
 }
 
 // PerformBackup executes the backup job.
-func PerformBackup(host string, job *config.JobConfig) {
+func PerformBackup(job *config.JobConfig) {
+	host := job.Host()
 	var err error
 	defer func() { state.finish(host, err) }()
 
@@ -92,12 +93,12 @@ func zfs(args ...string) error {
 		action = args[0]
 	}
 
-	l := log.WithFields(logrus.Fields{
+	f := appendStdlogs(logrus.Fields{
 		"prefix":  "zfs",
 		"command": append([]string{"zfs"}, args...),
-		"stdout":  o,
-		"stderr":  e,
-	})
+	}, o, e)
+
+	l := log.WithFields(f)
 
 	if err != nil {
 		l.WithError(err).Errorf("zfs %s failed", action)
@@ -108,13 +109,24 @@ func zfs(args ...string) error {
 	return err
 }
 
-func exec(prog string, args ...string) (stdout, stderr string, err error) {
+func exec(prog string, args ...string) (stdout, stderr *bytes.Buffer, err error) {
 	cmd := osexec.Command(prog, args...)
 
 	var o, e bytes.Buffer
 	cmd.Stdout = &o
 	cmd.Stderr = &e
 
-	err = cmd.Run()
-	return o.String(), e.String(), err
+	return &o, &e, cmd.Run()
+}
+
+func appendStdlogs(f logrus.Fields, out, err *bytes.Buffer) logrus.Fields {
+	if out.Len() > 0 {
+		f["stdout"] = out.String()
+		out.Reset()
+	}
+	if err.Len() > 0 {
+		f["stderr"] = err.String()
+		err.Reset()
+	}
+	return f
 }

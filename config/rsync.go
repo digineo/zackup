@@ -30,17 +30,28 @@ func (r *RsyncConfig) BuildArgVector(ssh, src, dst string) []string {
 		dst += "/"
 	}
 
-	args := r.filter()                                   // whatever is configured for this host
-	args = append(args, "-e", ssh)                       // -e 'ssh -S controlPath -p port -x'
-	args = append(args, r.args()...)                     // --include ... --exclude ...
-	args = append(args, "--delete", "--delete-excluded") // --delete --delete-excluded
-	args = append(args, src, dst)                        // user@host:/ /zackup/host/
+	args := r.filter()               // whatever is configured for this host
+	args = append(args, "-e", ssh)   // -e 'ssh -S controlPath -p port -x'
+	args = append(args, r.args()...) // --include ... --exclude ...
+
+	args = append(args,
+		// delete from dest (also if excluded), but at the end
+		"--delete", "--delete-excluded", "--delete-delay",
+		// the following tunes logging capabilities
+		"--itemize-changes", // TODO: make configurable
+	)
+
+	args = append(args, src, dst) // user@host:/ /zackup/host/
 	return args
 }
 
 // filter builds the filter argument list (--include/--exclude) for rsync.
 // This is modelled after BackupPC:
 // https://github.com/backuppc/backuppc/blob/master/lib/BackupPC/Xfer/Rsync.pm#L234
+//
+// Most of the complexity is based in the fact that we do an rsync from
+// `host:/`, i.e. we start to copy from the root directory of the remote
+// host.
 //
 // TODO: could be simplified.
 func (r *RsyncConfig) filter() (list []string) {
@@ -61,6 +72,7 @@ func (r *RsyncConfig) filter() (list []string) {
 	//>
 	//> To make this easier we do all the includes first and all of the excludes at
 	//> the end (hopefully they commute).
+
 	var inc, exc []string
 	incDone := make(map[string]struct{})
 	excDone := make(map[string]struct{})
@@ -108,7 +120,6 @@ func (r *RsyncConfig) filter() (list []string) {
 		//> just append additional exclude lists onto the end
 		list = append(list, "--exclude="+f)
 	}
-
 	return
 }
 
@@ -116,40 +127,82 @@ func (r *RsyncConfig) filter() (list []string) {
 // are partially used by sshMaster.rsync or alter the behaviour of rsync
 // in unwanted ways.
 //
-// The key is actually a simple match pattern (* = any, ? = one character),
-// and it maps to the number of arguments swallowed by that flag, e.g.
-//
-//	filter ["-a", "-e", "ssh -oAnything=yes", "-b"] == ["-a", "-b"]
-//
-// because "-e" swallows the next argument.
-var blacklistArgs = map[string]int{
-	`--debug*`:  1,
-	`--info*`:   1,
-	`--delete*`: 0,
-	`-e`:        1,
-	`--force`:   0,
-	`-q`:        0,
-	`--quiet`:   0,
-	`--include`: 1,
-	`--exclude`: 1,
-	`--filter`:  1,
+// This list is not exhaustive.
+var blacklistArgs = []blacklistArg{
+	{long: `--debug`, opt: true},
+	{long: `--info`, opt: true},
+	{long: `--verbose`, short: `-v`},
+	{long: `--delete*`},
+	{long: `--del`},
+	{long: `--rsh`, short: `-e`, opt: true},
+	{long: `--quiet`, short: `-q`},
+	{long: `--force`},
+	{long: `--include`, opt: true},
+	{long: `--exclude`, opt: true},
+	{long: `--filter`, short: `-f`, opt: true},
+	{long: `--itemize-changes`, short: `-i`},
+	{long: `--out-format`, opt: true},
+	{long: `--partial`},
+	{long: `--progress`, short: "-P"},
+	{long: `--daemon`}, // VERY bad idea
 }
 
-// args removes some blacklisted values from r.Arguments, to prevent you
+// blacklistArg models an rsync argument, which can exist in long and
+// short form  (--long vs. -l). If an argument swallow the next token,
+// opt is true.
+//
+// long can actually be a simple match pattern.
+type blacklistArg struct {
+	long, short string
+	opt         bool
+}
+
+func (bla *blacklistArg) Matches(arg string) (bool, int) {
+	if bla.short != "" && arg == bla.short {
+		return true, bla.n()
+	}
+	if bla.long != "" {
+		if arg == bla.long {
+			return true, bla.n()
+		}
+		if strings.IndexRune(bla.long, '*') > -1 {
+			// assume the user knows what he's doing
+			return match.Match(arg, bla.long), bla.n()
+		}
+		if bla.opt {
+			// gotcha: --long=arg does not swallow the next token
+			return match.Match(arg, bla.long+"=*"), 0
+		}
+	}
+	return false, 0
+}
+
+func (bla *blacklistArg) n() int {
+	if bla.opt {
+		return 1
+	}
+	return 0
+}
+
+// args removes blacklisted values from r.Arguments, to prevent you
 // from shooting yourself in the foot.
 func (r *RsyncConfig) args() []string {
 	f := make([]string, 0, len(r.Arguments))
 
 	for i := 0; i < len(r.Arguments); i++ {
-		for flag, n := range blacklistArgs {
-			arg := r.Arguments[i]
-			if arg == flag || match.Match(arg, flag) {
+		blacklisted := false
+		arg := r.Arguments[i]
+
+		for _, flag := range blacklistArgs {
+			if matches, n := flag.Matches(arg); matches {
 				i += n
-				continue
+				blacklisted = true
+				break
 			}
+		}
+		if !blacklisted {
 			f = append(f, arg)
 		}
 	}
-
 	return f
 }

@@ -6,11 +6,9 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 )
-
-// DefaultRoot is the fallback directory.
-const DefaultRoot = "/usr/local/etc/zackup"
 
 // Tree is the internal representation of the configuration directory
 // passed in as ROOT_DIR flag/env var.
@@ -19,6 +17,9 @@ type Tree interface {
 	// is different than the previously setup path, the config tree is
 	// reloaded.
 	SetRoot(newRoot string) error
+
+	// Root returns the path to the root config directory. Might be empty.
+	Root() string
 
 	// GetHosts returns the list of configured hosts.
 	Hosts() []string
@@ -61,6 +62,10 @@ func (t *tree) SetRoot(newRoot string) error {
 	return nil
 }
 
+func (t *tree) Root() string {
+	return t.root
+}
+
 func (t *tree) Service() *ServiceConfig {
 	t.RLock()
 	defer t.RUnlock()
@@ -88,7 +93,7 @@ func (t *tree) Host(name string) *JobConfig {
 	t.RLock()
 	defer t.RUnlock()
 	if job, ok := t.hosts[name]; ok {
-		j := &JobConfig{}
+		j := &JobConfig{host: job.host}
 		j.mergeGlobals(job)
 		return j
 	}
@@ -110,13 +115,13 @@ func (t *tree) reload() error {
 	// read service config
 	t.service = &ServiceConfig{}
 	if err := t.decodeYaml("config.yml", t.service); err != nil {
-		return err
+		return errors.Wrap(err, "failed to load config.yml")
 	}
 
 	// read global config
 	t.global = &JobConfig{}
 	if err := t.decodeYaml("globals.yml", t.global); err != nil {
-		return err
+		return errors.Wrap(err, "failed to load globals.yml")
 	}
 
 	// read host configs

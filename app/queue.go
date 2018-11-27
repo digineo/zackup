@@ -8,28 +8,27 @@ import (
 
 // Queue manages the parallel execution of jobs.
 type Queue interface {
-	// Enqueue adds a job to the queue. It is run immediately after all
-	// previous queued items are consumed.
-	Enqueue(host string, job *config.JobConfig)
+	// Enqueue adds a job to the queue. The job is run immediately if the
+	// queue is empty. This method may block if a backlog has accumulated.
+	Enqueue(job *config.JobConfig)
 
 	// Resize changes the size of the queue. When sizing down, surplus
 	// running jobs will finish. Values for newSize are capped; for values
 	// less then 1, 1 is assumed, and for values larger than an arbitrary
 	// threshold, that threshold value is assumed.
 	Resize(newSize int)
-}
 
-type queueItem struct {
-	hostname string
-	job      *config.JobConfig
+	// Wait will wait for all jobs to complete.
+	Wait()
 }
 
 type quitCh chan struct{}
 
 type queue struct {
-	workers []quitCh
-	jobs    chan *queueItem
-	wg      *sync.WaitGroup
+	workers     []quitCh
+	workerGroup sync.WaitGroup
+	jobs        chan *config.JobConfig
+	jobGroup    sync.WaitGroup
 
 	sync.RWMutex
 }
@@ -39,22 +38,26 @@ type queue struct {
 func NewQueue(size int) Queue {
 	if size < 1 {
 		size = 1
-	} else if size > qResizeThreshold {
-		size = qResizeThreshold
+	} else if size > maxParallelity {
+		size = maxParallelity
 	}
 
+	backlog := 16 // TODO: optimize or make configurable
 	q := queue{
-		workers: make([]quitCh, 0, qResizeThreshold),
-		jobs:    make(chan *queueItem),
-		wg:      &sync.WaitGroup{},
+		workers: make([]quitCh, 0, maxParallelity),
+		jobs:    make(chan *config.JobConfig, backlog),
 	}
 
-	q.wg.Add(int(size))
+	q.workerGroup.Add(int(size))
 	for i := 0; i < size; i++ {
 		q.newWorker()
 	}
 
 	return &q
+}
+
+func (q *queue) Wait() {
+	q.jobGroup.Wait()
 }
 
 func (q *queue) newWorker() {
@@ -67,23 +70,32 @@ func (q *queue) newWorker() {
 	Loop:
 		for {
 			select {
-			case j := <-q.jobs:
-				PerformBackup(j.hostname, j.job)
+			case job := <-q.jobs:
+				PerformBackup(job)
+				q.jobGroup.Done()
 			case <-quit:
 				break Loop
 			}
 		}
-		q.wg.Done()
+		q.workerGroup.Done()
 	}()
 }
 
-const qResizeThreshold = 255
+func (q *queue) Enqueue(job *config.JobConfig) {
+	q.jobGroup.Add(1)
+	q.jobs <- job
+}
+
+// maxParallelity defines the max. queue size. At a certain value, we're
+// bound not by CPU, but by IO (net and disk). A more realistic value
+// might actually be lower, for now this acts as a safety net.
+const maxParallelity = 255
 
 func (q *queue) Resize(newSize int) {
 	if newSize < 0 {
 		newSize = 1
-	} else if newSize > qResizeThreshold {
-		newSize = qResizeThreshold
+	} else if newSize > maxParallelity {
+		newSize = maxParallelity
 	}
 
 	q.Lock()
@@ -103,15 +115,11 @@ func (q *queue) Resize(newSize int) {
 		q.workers = q.workers[:newSize]
 	} else if diff < 0 {
 		// create missing workers
-		q.wg.Add(-diff)
+		q.workerGroup.Add(-diff)
 		for i := 0; i < -diff; i++ {
 			go q.newWorker()
 		}
 	}
-}
-
-func (q *queue) Enqueue(host string, job *config.JobConfig) {
-	q.jobs <- &queueItem{hostname: host, job: job}
 }
 
 // Notes on the "kill surplus of workers" algorithm

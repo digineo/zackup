@@ -22,7 +22,7 @@ type sshMaster struct {
 	port uint16
 
 	controlPath string // SSH multiplexing socket
-	mountPath   string // join(RootDataset, host)
+	mountPath   string // join(MountBase, host)
 
 	tunnel *osexec.Cmd     // foreground SSH process
 	wg     *sync.WaitGroup // for execute/rsync
@@ -36,8 +36,8 @@ func newSSHMaster(host string, port uint16, user string) *sshMaster {
 		user: user,
 		port: port,
 
-		controlPath: filepath.Join(RootDataset, ".zackup", ".%h_%C"),
-		mountPath:   filepath.Join(RootDataset, host),
+		controlPath: filepath.Join(MountBase, ".zackup", ".%h_%C"),
+		mountPath:   filepath.Join(MountBase, host),
 
 		mu: &sync.Mutex{},
 		wg: &sync.WaitGroup{},
@@ -63,7 +63,14 @@ func (c *sshMaster) connect() error {
 		"-p", strconv.Itoa(int(c.port)),
 		"-l", c.user,
 		c.host,
-	)
+	}
+	cmd := osexec.Command("ssh", args...)
+
+	log.WithFields(logrus.Fields{
+		"prefix": "ssh.master",
+		"host":   c.host,
+		"args":   args,
+	}).Info("Starting SSH tunnel")
 
 	if err := cmd.Start(); err != nil {
 		return err
@@ -121,13 +128,12 @@ func (c *sshMaster) execute(script []string) error {
 	cmd.Stderr = &e
 
 	logerr := func(err error, msg string, extra ...string) {
-		f := logrus.Fields{
+		f := appendStdlogs(logrus.Fields{
 			logrus.ErrorKey: err,
 			"prefix":        "ssh.execute",
 			"host":          c.host,
-			"stdout":        o.String(),
-			"stderr":        e.String(),
-		}
+		}, &o, &e)
+
 		for i := 0; i < len(extra); i += 2 {
 			f[extra[i]] = extra[i+1]
 		}
@@ -230,6 +236,7 @@ func captureOutput(log *logrus.Entry, cmd *osexec.Cmd) (func(), *sync.WaitGroup,
 		return nil, nil, err
 	}
 
+	wg.Add(2)
 	go capture("stdout", stdout)
 	go capture("stderr", stderr)
 

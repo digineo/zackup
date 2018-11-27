@@ -1,12 +1,12 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
+	"github.com/pkg/errors"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -24,6 +24,7 @@ func pathToHostVariantB(name string) string {
 func (h HostConfigs) readGlob(pattern string, matchToHost func(string) string) (err error) {
 	glob, err := filepath.Glob(pattern)
 	if err != nil {
+		err = errors.Wrapf(err, "expanding glob %q failed", pattern)
 		return
 	}
 
@@ -39,7 +40,7 @@ func (h HostConfigs) readGlob(pattern string, matchToHost func(string) string) (
 
 func (h HostConfigs) readHostConfig(host, file string) (err error) {
 	if _, ok := h[host]; ok {
-		err = fmt.Errorf("duplicate host config for %s found", host)
+		err = errors.Errorf("duplicate host config for %s found", host)
 		return
 	}
 	var f *os.File
@@ -50,8 +51,10 @@ func (h HostConfigs) readHostConfig(host, file string) (err error) {
 
 	j := JobConfig{}
 	if err = yaml.NewDecoder(f).Decode(&j); err != nil {
+		err = errors.Wrapf(err, "reading %q", file)
 		return
 	}
+	j.host = host
 	h[host] = &j
 
 	return
