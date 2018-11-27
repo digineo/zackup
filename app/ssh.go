@@ -53,8 +53,9 @@ func (c *sshMaster) connect() error {
 		return errors.New("already established")
 	}
 
-	cmd := osexec.Command("ssh",
+	args := []string{
 		"-o", "ControlMaster=yes",
+		"-o", "StrictHostKeyChecking=yes", // default=ask (prompt)
 		"-S", c.controlPath, // == -oControlPath=...
 		"-n", // disable stdin
 		"-N", // do not execute command on remote server
@@ -185,7 +186,7 @@ func (c *sshMaster) rsync(r *config.RsyncConfig) error {
 	})
 
 	args := r.BuildArgVector(
-		/* ssh */ fmt.Sprintf("ssh -S %s -p %d -x", c.controlPath, c.port),
+		/* ssh */ fmt.Sprintf("ssh -S %s -p %d -x -oStrictHostKeyChecking=yes", c.controlPath, c.port),
 		/* src */ fmt.Sprintf("%s@%s:", c.user, c.host),
 		/* dst */ c.mountPath,
 	)
