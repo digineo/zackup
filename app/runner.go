@@ -88,28 +88,19 @@ func (ds *dataset) snapshot() error {
 func zfs(args ...string) error {
 	o, e, err := exec("zfs", args...)
 
-	var action string
-	if len(args) > 0 {
-		action = args[0]
-	}
-
-	f := appendStdlogs(logrus.Fields{
-		"prefix":  "zfs",
-		"command": append([]string{"zfs"}, args...),
-	}, o, e)
-
-	l := log.WithFields(f)
-
 	if err != nil {
-		l.WithError(err).Errorf("zfs %s failed", action)
-	} else {
-		l.Infof("zfs %s succeeded", action)
+		f := appendStdlogs(logrus.Fields{
+			logrus.ErrorKey: err,
+			"prefix":        "zfs",
+			"command":       append([]string{"zfs"}, args...),
+		}, o, e)
+		log.WithFields(f).Errorf("executing zfs failed")
 	}
-
 	return err
 }
 
 func exec(prog string, args ...string) (stdout, stderr *bytes.Buffer, err error) {
+	log.WithField("args", args).Tracef("executing %s", prog)
 	cmd := osexec.Command(prog, args...)
 
 	var o, e bytes.Buffer
@@ -120,11 +111,11 @@ func exec(prog string, args ...string) (stdout, stderr *bytes.Buffer, err error)
 }
 
 func appendStdlogs(f logrus.Fields, out, err *bytes.Buffer) logrus.Fields {
-	if out.Len() > 0 {
+	if out != nil && out.Len() > 0 {
 		f["stdout"] = out.String()
 		out.Reset()
 	}
-	if err.Len() > 0 {
+	if err != nil && err.Len() > 0 {
 		f["stderr"] = err.String()
 		err.Reset()
 	}

@@ -1,0 +1,72 @@
+package app
+
+import (
+	"fmt"
+	"testing"
+	"time"
+)
+
+func statusString(s MetricStatus) string {
+	switch s {
+	case statusUnknown:
+		return "unknown"
+	case statusSuccess:
+		return "success"
+	case statusFailed:
+		return "failed"
+	case statusRunning:
+		return "running"
+	}
+	return fmt.Sprintf("unknown status: %d", s)
+}
+
+func TestMetricsStatus(t *testing.T) {
+	var t0 time.Time
+	t1 := time.Date(2018, time.December, 9, 12, 0, 0, 0, time.UTC)
+	t2 := t1.Add(time.Hour)
+	t3 := t2.Add(time.Hour)
+
+	for expected, tt := range map[MetricStatus][]struct {
+		t0   time.Time
+		tOK  *time.Time
+		tErr *time.Time
+	}{
+		statusUnknown: {
+			{t0, nil, nil}, // t0 == time.Zero
+			{t0, &t1, &t1}, // && tOK == tErr
+			{t0, &t1, &t2}, // && tErr > tOK
+			{t0, &t3, &t2}, // && tOK > tErr
+
+			{t1, &t1, &t1}, // t0 == tOK == tErr
+			{t1, &t2, &t2}, // tOK > t0 && tErr > t0 && tOK == tErr
+		},
+		statusRunning: {
+			{t1, nil, nil}, // t0 > time.Zero
+			{t2, &t1, nil}, // t0 > tOK
+			{t2, nil, &t1}, // t0 > tErr
+			{t2, &t1, &t1}, // t0 > tOK && t0 > tErr
+		},
+		statusFailed: {
+			{t1, nil, &t2}, // tErr > t0
+			{t1, &t1, &t2}, // tErr > t0 && tErr > tOK
+			{t1, &t2, &t3}, // tErr > tOK && tOK > t0 && tOK > tStart
+		},
+		statusSuccess: {
+			{t1, &t2, nil}, // tOK > t0
+			{t1, &t2, &t1}, // tOK > t0 && tOK > tErr
+			{t1, &t3, &t2}, // tOK > tErr && tErr > t0 && tErr > tStart
+		},
+	} {
+		for i, tc := range tt {
+			subject := metrics{
+				StartedAt:   tc.t0,
+				SucceededAt: tc.tOK,
+				FailedAt:    tc.tErr,
+			}
+			actual := subject.Status()
+			if actual != expected {
+				t.Errorf("case %d: expected %s, got %s\n", i, statusString(expected), statusString(actual))
+			}
+		}
+	}
+}

@@ -1,7 +1,8 @@
 package cmd
 
 import (
-	"fmt"
+	"git.digineo.de/digineo/zackup/app"
+	"github.com/sirupsen/logrus"
 
 	"github.com/spf13/cobra"
 )
@@ -17,7 +18,12 @@ var serveCmd = &cobra.Command{
 	Short: "Starts zackup as deamon.",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, _ []string) {
-		fmt.Println("serve called")
+		log.WithFields(logrus.Fields{
+			"bind": serveBind,
+			"port": int(servePort),
+		}).Info("Start HTTP server")
+
+		app.StartHTTP(serveBind, servePort)
 	},
 }
 

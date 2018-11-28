@@ -101,7 +101,8 @@ func (sc *schedule) String() string {
 // decreasing for increasing reference times, nor returns it the same duration
 // for the same ref).
 func (s *ServiceConfig) NextSchedule(ref time.Time) time.Time {
-	next := s.Daemon.Schedule.Next(&ref)
+	utc := ref.UTC()
+	next := s.Daemon.Schedule.Next(&utc)
 	jit := int64(s.Daemon.Jitter)
 	rnd := rand.Int63n(jit) - jit/2
 
