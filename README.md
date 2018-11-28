@@ -116,8 +116,8 @@ The defaults are:
 
 ```yaml
 parallel:     5
-root_dataset: zpool
-mount_base:   /var/zackup
+root_dataset: zpool/zackup
+mount_base:   /zpool/zackup
 log_level:    info
 daemon:
   schedule:   "04:00:00"
