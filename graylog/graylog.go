@@ -1,18 +1,29 @@
 package graylog
 
 import (
+	"os"
 	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
+	prefixed "github.com/x-cray/logrus-prefixed-formatter"
+	"golang.org/x/crypto/ssh/terminal"
 	graylog "gopkg.in/gemnasium/logrus-graylog-hook.v2"
 )
 
 var (
-	log = logrus.WithField("prefix", "middleware")
-
 	_ Middleware  = (*middleware)(nil) // type check
 	_ logrus.Hook = (*middleware)(nil) // type check
 )
+
+func init() {
+	if terminal.IsTerminal(int(os.Stdout.Fd())) {
+		logrus.SetFormatter(&prefixed.TextFormatter{
+			FullTimestamp:   true,
+			TimestampFormat: time.StampMilli,
+		})
+	}
+}
 
 // Middleware implements a runtime-configurable Graylog middleware. This
 // allows you can change the log level and graylog endpoint at runtime.
@@ -26,7 +37,9 @@ type Middleware interface {
 
 // NewMiddleware returns a new Middleware.
 func NewMiddleware(componentName string) Middleware {
-	return &middleware{name: componentName}
+	m := &middleware{name: componentName}
+	logrus.AddHook(m)
+	return m
 }
 
 type middleware struct {
@@ -76,7 +89,7 @@ func (gl *middleware) SetLevel(s string) {
 	lvl, err := logrus.ParseLevel(s)
 	if err == nil && lvl != gl.level {
 		// log level has changed
-		log.Level = lvl
+		logrus.SetLevel(lvl)
 		gl.level = lvl
 	}
 }
