@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 
+	"git.digineo.de/digineo/zackup/app"
 	"git.digineo.de/digineo/zackup/config"
 	"git.digineo.de/digineo/zackup/graylog"
 	"github.com/digineo/goldflags"
@@ -11,11 +12,12 @@ import (
 )
 
 var (
-	log = logrus.WithField("prefix", "commands")
+	log       = logrus.WithField("prefix", "commands")
+	verbosity int
 
-	tree         = config.NewTree("")
-	treeRoot     = config.DefaultRoot
-	treeCallback func(config.Tree)
+	tree     = config.NewTree("")
+	treeRoot = config.DefaultRoot
+	queue    = app.NewQueue(5)
 
 	gl         = graylog.NewMiddleware("zackup")
 	glEndpoint string
@@ -30,34 +32,32 @@ var rootCmd = &cobra.Command{
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
-//
-// The (optional) callback function is called once the config tree was (re-) loaded.
-func Execute(callback func(config.Tree)) func() {
-	if callback != nil && treeCallback == nil {
-		treeCallback = callback
-	}
-
+func Execute() {
+	defer gl.Flush()
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
-	}
-
-	return func() {
-		if glEndpoint != "" {
-			gl.Flush()
-		}
 	}
 }
 
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVarP(&treeRoot, "root", "r", treeRoot, "config root directory")
+	rootCmd.PersistentFlags().CountVarP(&verbosity, "verbose", "v", "increase log level (specify once for debug, twice for trace)")
 	rootCmd.PersistentFlags().StringVarP(&glEndpoint, "gelf", "l", glEndpoint, "GELF endpoint (Graylog remote logging)")
 }
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
 	if glEndpoint != "" {
-		logrus.AddHook(gl)
+		gl.SetEndpoint(glEndpoint)
+	}
+
+	if verbosity == 2 {
+		gl.SetLevel("trace")
+		log.Debug("increase log level (trace)")
+	} else if verbosity == 1 {
+		gl.SetLevel("debug")
+		log.Debug("increase log level (debug)")
 	}
 
 	if treeRoot == "" {
@@ -72,8 +72,19 @@ func initConfig() {
 	}
 	l.Info("config tree read")
 
-	if treeCallback != nil {
-		treeCallback(tree)
+	if svc := tree.Service(); svc != nil {
+		if verbosity == 0 {
+			gl.SetLevel(svc.LogLevel)
+		}
+
+		queue.Resize(int(svc.Parallel))
+
+		app.RootDataset = svc.RootDataset
+		app.MountBase = svc.MountBase
+
+		if err := app.LoadState(); err != nil {
+			l.WithError(err).Fatalf("cannot restore state from ZFS metadata")
+		}
 	}
 
 	hosts := tree.Hosts()

@@ -1,20 +1,6 @@
 package cmd
 
-import (
-	"git.digineo.de/digineo/zackup/app"
-	"github.com/spf13/cobra"
-)
-
-var queue app.Queue
-
-// ResizeQueue resizes the queue's worker pool.
-func ResizeQueue(size int) {
-	if queue == nil {
-		queue = app.NewQueue(size)
-	} else {
-		queue.Resize(size)
-	}
-}
+import "github.com/spf13/cobra"
 
 // runCmd represents the run command
 var runCmd = &cobra.Command{
