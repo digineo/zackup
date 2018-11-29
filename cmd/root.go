@@ -41,9 +41,9 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVarP(&treeRoot, "root", "r", treeRoot, "config root directory")
-	rootCmd.PersistentFlags().CountVarP(&verbosity, "verbose", "v", "increase log level (specify once for debug, twice for trace)")
-	rootCmd.PersistentFlags().StringVarP(&glEndpoint, "gelf", "l", glEndpoint, "GELF endpoint (Graylog remote logging)")
+	rootCmd.PersistentFlags().StringVarP(&treeRoot, "root", "r", treeRoot, "config root `directory`")
+	rootCmd.PersistentFlags().CountVarP(&verbosity, "verbose", "v", "increase log `level` (1=debug, 2=trace)")
+	rootCmd.PersistentFlags().StringVarP(&glEndpoint, "gelf", "l", glEndpoint, "GELF UDP endpoint in `host:port` notation")
 }
 
 // initConfig reads in config file and ENV variables if set.

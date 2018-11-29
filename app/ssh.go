@@ -218,7 +218,7 @@ func captureOutput(log *logrus.Entry, cmd *osexec.Cmd) (func(), *sync.WaitGroup,
 		caplog := log.WithField("stream", name)
 		s := bufio.NewScanner(r)
 		for s.Scan() {
-			caplog.Info(s.Text())
+			caplog.Debug(s.Text())
 		}
 		if err := s.Err(); err != nil {
 			caplog.WithError(err).Error("unexpected end of stream")

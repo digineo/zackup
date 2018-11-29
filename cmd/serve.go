@@ -1,9 +1,12 @@
 package cmd
 
 import (
+	"os"
+	"os/signal"
+	"syscall"
+
 	"git.digineo.de/digineo/zackup/app"
 	"github.com/sirupsen/logrus"
-
 	"github.com/spf13/cobra"
 )
 
@@ -23,12 +26,22 @@ var serveCmd = &cobra.Command{
 			"port": int(servePort),
 		}).Info("Start HTTP server")
 
-		app.StartHTTP(serveBind, servePort)
+		sched := app.NewScheduler(tree, queue)
+		go sched.Start()
+		srv := app.NewHTTP(serveBind, servePort, sched)
+		go srv.Start()
+
+		ch := make(chan os.Signal)
+		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+		log.WithField("signal", (<-ch).String()).Warn("Stopping HTTP server")
+		sched.Stop()
+		srv.Stop()
+		log.Info("Shutdown.")
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(serveCmd)
-	serveCmd.PersistentFlags().StringVarP(&serveBind, "bind", "b", serveBind, "address to bind to")
-	serveCmd.PersistentFlags().Uint16VarP(&servePort, "port", "p", servePort, "port to bind to")
+	serveCmd.PersistentFlags().StringVarP(&serveBind, "bind", "b", serveBind, "`address` to bind to")
+	serveCmd.PersistentFlags().Uint16VarP(&servePort, "port", "p", servePort, "`port` to bind to")
 }

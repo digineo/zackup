@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -10,43 +11,78 @@ import (
 
 	"git.digineo.de/digineo/zackup/graylog"
 	"github.com/gorilla/mux"
+	"github.com/sirupsen/logrus"
 )
 
-// StartHTTP starts a new web server, mainly for metrics, but also for
-// a quick overview.
-func StartHTTP(bind string, port uint16) {
-	mux := mux.NewRouter()
-	mux.HandleFunc("/-/metrics", promStub).Methods(http.MethodGet)
-	mux.HandleFunc("/", handleIndex).Methods(http.MethodGet)
+// HTTP allows interaction with the zackup webserver.
+type HTTP interface {
+	// Start will start the HTTP server.
+	Start()
 
-	mux.Use(graylog.NewMuxLogger(log.WithField("prefix", "server")))
-
-	srv := http.Server{
-		Addr:         fmt.Sprintf("%s:%d", bind, port),
-		Handler:      mux,
-		ReadTimeout:  3 * time.Second,
-		WriteTimeout: 1 * time.Second,
-	}
-
-	srv.ListenAndServe()
+	// Stop will gracefull shut down the HTTP server.
+	Stop()
 }
 
-func promStub(w http.ResponseWriter, r *http.Request) {
+type server struct {
+	scheduler Scheduler     // we only need its State()
+	logger    *logrus.Entry // unified logging
+
+	*http.Server
+}
+
+// NewHTTP sets a new web server up, mainly for metrics, but also for
+// a quick overview. Use
+func NewHTTP(bind string, port uint16, s Scheduler) HTTP {
+	srv := &server{
+		scheduler: s,
+		logger:    log.WithField("prefix", "http"),
+
+		Server: &http.Server{
+			Addr:         fmt.Sprintf("%s:%d", bind, port),
+			ReadTimeout:  3 * time.Second,
+			WriteTimeout: 1 * time.Second,
+		},
+	}
+	mux := mux.NewRouter()
+	mux.HandleFunc("/-/metrics", srv.promStub).Methods(http.MethodGet)
+	mux.HandleFunc("/", srv.handleIndex).Methods(http.MethodGet)
+	mux.Use(graylog.NewMuxLogger(srv.logger))
+
+	srv.Server.Handler = mux
+	return srv
+}
+
+func (srv *server) Start() {
+	err := srv.ListenAndServe()
+	if err != nil && err != http.ErrServerClosed {
+		srv.logger.WithError(err).Error("unexpected shutdown")
+	}
+}
+
+func (srv *server) Stop() {
+	if err := srv.Shutdown(context.Background()); err != nil {
+		srv.logger.WithError(err).Error("unexpected shutdown")
+	}
+}
+
+func (srv *server) promStub(w http.ResponseWriter, r *http.Request) {
 	log.Error("todo")
 }
 
-func handleIndex(w http.ResponseWriter, r *http.Request) {
+func (srv *server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	data := struct {
-		Hosts []HostMetrics
-		Time  time.Time
+		Hosts     []HostMetrics
+		Time      time.Time
+		Scheduler SchedulerState
 	}{
-		Hosts: state.export(),
-		Time:  time.Now().UTC(),
+		Hosts:     state.export(),
+		Time:      time.Now().UTC(),
+		Scheduler: srv.scheduler.State(),
 	}
 	var buf bytes.Buffer
 
 	if err := tpl.Execute(&buf, data); err != nil {
-		log.WithError(err).Error("failed to execute index template")
+		srv.logger.WithError(err).Error("failed to execute index template")
 		http.Error(w, "error building status table", http.StatusInternalServerError)
 		return
 	}
@@ -118,8 +154,7 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 		}
 		return ""
 	},
-}).Parse(`
-<!doctype html>
+}).Parse(`<!doctype html>
 <html>
 <head>
 	<meta charset="UTF-8">
@@ -135,7 +170,16 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 	<main class="container">
 		<h1>zackup overview</h1>
 		<table class="table table-sm">
-			<caption>Date: {{ fmtTime .Time }}</caption>
+			<caption class="small">
+				<span class="float-right">
+				{{ if .Scheduler.Active }}
+					active since {{ fmtTime .Scheduler.NextRun }}
+				{{ else }}
+					next run scheduled at {{ fmtTime .Scheduler.NextRun }}
+				{{ end }}
+				</span>
+				Date: {{ fmtTime .Time }}
+			</caption>
 			<thead>
 				<tr>
 					<th class="text-right">Status</th>
