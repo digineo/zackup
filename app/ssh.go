@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+	"time"
 
 	"git.digineo.de/digineo/zackup/config"
 	"github.com/sirupsen/logrus"
@@ -36,7 +37,7 @@ func newSSHMaster(host string, port uint16, user string) *sshMaster {
 		user: user,
 		port: port,
 
-		controlPath: filepath.Join(MountBase, ".zackup", ".%h_%C"),
+		controlPath: filepath.Join(MountBase, ".zackup_%h_%C"),
 		mountPath:   filepath.Join(MountBase, host),
 
 		mu: &sync.Mutex{},
@@ -96,15 +97,20 @@ func (c *sshMaster) close() {
 	// wait for running commands to finish
 	c.wg.Wait()
 
-	if err := c.tunnel.Process.Signal(syscall.SIGINT); err != nil {
+	if err := c.tunnel.Process.Signal(syscall.SIGTERM); err != nil {
 		l.WithError(err).Warn("closing with interrupt failed, send kill")
+		time.Sleep(500 * time.Millisecond)
 		if err = c.tunnel.Process.Kill(); err != nil {
 			l.WithError(err).Error("closing with kill failed")
 		}
 	}
 
 	if err := c.tunnel.Wait(); err != nil {
-		l.WithError(err).Warn("unexpected termination")
+		// since we've sig{term,kill}'ed the process, we're not interested
+		// in the ExitError
+		if _, ok := err.(*osexec.ExitError); !ok {
+			l.WithError(err).Warn("unexpected termination")
+		}
 	}
 
 	c.tunnel = nil
