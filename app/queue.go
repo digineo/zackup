@@ -6,6 +6,10 @@ import (
 	"git.digineo.de/digineo/zackup/config"
 )
 
+
+// To avoid running the same job either parallel or in rapid succession,
+// at least this time apart.
+const duplicateDetectionTime = 5 * time.Minute
 // Queue manages the parallel execution of jobs.
 type Queue interface {
 	// Enqueue adds a job to the queue. The job is run immediately if the
@@ -24,11 +28,29 @@ type Queue interface {
 
 type quitCh chan struct{}
 
+type lastSeenEntry struct {
+	start, finish time.Time
+}
+
+// recent reports whether ent is marked active (start > finish) or if
+// it recently finished (tRef - finish <= duplicateDetectionTime).
+func (ent *lastSeenEntry) recent(ref *time.Time) bool {
+	if ent.start.IsZero() {
+		return false
+	}
+
+	finPlus := ent.finish.Add(duplicateDetectionTime)
+	return ent.start.After(ent.finish) || ref.Before(finPlus) || ref.Equal(finPlus)
+}
+
 type queue struct {
 	workers     []quitCh
 	workerGroup sync.WaitGroup
 	jobs        chan *config.JobConfig
 	jobGroup    sync.WaitGroup
+
+	// for duplicate detection
+	lastSeen map[string]*lastSeenEntry
 
 	sync.RWMutex
 }
@@ -44,8 +66,9 @@ func NewQueue(size int) Queue {
 
 	backlog := 16 // TODO: optimize or make configurable
 	q := queue{
-		workers: make([]quitCh, 0, maxParallelity),
-		jobs:    make(chan *config.JobConfig, backlog),
+		workers:  make([]quitCh, 0, maxParallelity),
+		jobs:     make(chan *config.JobConfig, backlog),
+		lastSeen: make(map[string]*lastSeenEntry),
 	}
 
 	q.workerGroup.Add(int(size))
@@ -71,7 +94,7 @@ func (q *queue) newWorker() {
 		for {
 			select {
 			case job := <-q.jobs:
-				PerformBackup(job)
+				q.checkDuplicateAndRun(job)
 				q.jobGroup.Done()
 			case <-quit:
 				break Loop
@@ -90,6 +113,30 @@ func (q *queue) Enqueue(job *config.JobConfig) {
 // bound not by CPU, but by IO (net and disk). A more realistic value
 // might actually be lower, for now this acts as a safety net.
 const maxParallelity = 255
+func (q *queue) checkDuplicateAndRun(job *config.JobConfig) {
+	host := job.Host()
+	perform := false
+	now := time.Now()
+
+	q.Lock()
+	ent, ok := q.lastSeen[host]
+	if !ok {
+		ent = &lastSeenEntry{start: now}
+		q.lastSeen[host] = ent
+		perform = true
+	} else if !ent.recent(&now) {
+		ent.start = now
+		perform = true
+	}
+	q.Unlock()
+
+	if perform {
+		PerformBackup(job)
+		ent.finish = time.Now()
+	} else {
+		log.WithField("host", host).Info("duplicate job")
+	}
+}
 
 func (q *queue) Resize(newSize int) {
 	if newSize < 0 {
