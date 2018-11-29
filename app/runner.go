@@ -30,14 +30,15 @@ func newDataset(host string) *dataset {
 func PerformBackup(job *config.JobConfig) {
 	host := job.Host()
 	var err error
-	defer func() { state.finish(host, err) }()
 
-	state.start(host)
 	ds := newDataset(host)
-
 	if err = ds.create(); err != nil {
 		return
 	}
+
+	// requires dataset to exist
+	defer func() { state.finish(host, err) }()
+	state.start(host)
 
 	m := newSSHMaster(host, job.SSH.Port, job.SSH.User)
 	if err = m.connect(); err != nil {

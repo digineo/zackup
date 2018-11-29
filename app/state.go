@@ -263,7 +263,7 @@ func storeStart(host string, t time.Time) error {
 			logrus.ErrorKey: err,
 			"command":       append([]string{"zfs"}, args...),
 		}, o, e)
-		log.WithFields(f).Error("failed to load state")
+		log.WithFields(f).Error("failed to store start state")
 		return err
 	}
 	return nil
@@ -290,7 +290,7 @@ func storeResult(host string, success bool, t time.Time, dur time.Duration) erro
 			logrus.ErrorKey: err,
 			"command":       append([]string{"zfs"}, args...),
 		}, o, e)
-		log.WithFields(f).Error("failed to load state")
+		log.WithFields(f).Error("failed to store result state")
 		return err
 	}
 	return nil
