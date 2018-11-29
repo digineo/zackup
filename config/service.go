@@ -39,11 +39,6 @@ func (d *duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-// Duration returns the underlying duration.
-func (d duration) Duration() time.Duration {
-	return time.Duration(d)
-}
-
 type schedule struct {
 	h, m, s int // hour, minute and second values
 }
@@ -102,13 +97,18 @@ func (sc *schedule) String() string {
 // for the same ref).
 func (s *ServiceConfig) NextSchedule(ref time.Time) time.Time {
 	utc := ref.UTC()
+
+	// advance ref time, so that we don't end up in the range [utc, utc+jit/2)
+	if jit := time.Duration(s.Daemon.Jitter / 2); jit > 0 {
+		utc = utc.Add(jit)
+	}
 	next := s.Daemon.Schedule.Next(&utc)
-	jit := int64(s.Daemon.Jitter)
-	rnd := rand.Int63n(jit) - jit/2
 
-	return next.Add(time.Duration(rnd).Truncate(time.Second))
-}
+	// apply jitter
+	if jit := int64(s.Daemon.Jitter); jit > 0 {
+		rnd := rand.Int63n(jit) - jit/2
+		next = next.Add(time.Duration(rnd).Truncate(100 * time.Millisecond))
+	}
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
+	return next
 }
