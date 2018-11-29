@@ -17,7 +17,7 @@ var (
 
 	tree     = config.NewTree("")
 	treeRoot = config.DefaultRoot
-	queue    = app.NewQueue(5)
+	queue    = app.NewQueue()
 
 	gl         = graylog.NewMiddleware("zackup")
 	glEndpoint string
@@ -42,7 +42,7 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVarP(&treeRoot, "root", "r", treeRoot, "config root `directory`")
-	rootCmd.PersistentFlags().CountVarP(&verbosity, "verbose", "v", "increase log `level` (1=debug, 2=trace)")
+	rootCmd.PersistentFlags().CountVarP(&verbosity, "verbose", "v", "increase log level (specify once for debug, twice for trace level messages)")
 	rootCmd.PersistentFlags().StringVarP(&glEndpoint, "gelf", "l", glEndpoint, "GELF UDP endpoint in `host:port` notation")
 }
 

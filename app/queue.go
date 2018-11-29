@@ -2,14 +2,20 @@ package app
 
 import (
 	"sync"
+	"time"
 
 	"git.digineo.de/digineo/zackup/config"
 )
 
+// maxParallelity defines the max. queue size. At a certain value, we're
+// bound not by CPU, but by IO (net and disk). A more realistic value
+// might actually be lower, for now this acts as a safety net.
+const maxParallelity = 255
 
 // To avoid running the same job either parallel or in rapid succession,
 // at least this time apart.
 const duplicateDetectionTime = 5 * time.Minute
+
 // Queue manages the parallel execution of jobs.
 type Queue interface {
 	// Enqueue adds a job to the queue. The job is run immediately if the
@@ -57,13 +63,7 @@ type queue struct {
 
 // NewQueue constructs an empty queue with the given size and starts
 // the same amount of workers.
-func NewQueue(size int) Queue {
-	if size < 1 {
-		size = 1
-	} else if size > maxParallelity {
-		size = maxParallelity
-	}
-
+func NewQueue() Queue {
 	backlog := 16 // TODO: optimize or make configurable
 	q := queue{
 		workers:  make([]quitCh, 0, maxParallelity),
@@ -71,10 +71,8 @@ func NewQueue(size int) Queue {
 		lastSeen: make(map[string]*lastSeenEntry),
 	}
 
-	q.workerGroup.Add(int(size))
-	for i := 0; i < size; i++ {
-		q.newWorker()
-	}
+	q.workerGroup.Add(1)
+	q.newWorker()
 
 	return &q
 }
@@ -105,14 +103,12 @@ func (q *queue) newWorker() {
 }
 
 func (q *queue) Enqueue(job *config.JobConfig) {
+	q.RLock() // we could be resizing
 	q.jobGroup.Add(1)
 	q.jobs <- job
+	q.RUnlock()
 }
 
-// maxParallelity defines the max. queue size. At a certain value, we're
-// bound not by CPU, but by IO (net and disk). A more realistic value
-// might actually be lower, for now this acts as a safety net.
-const maxParallelity = 255
 func (q *queue) checkDuplicateAndRun(job *config.JobConfig) {
 	host := job.Host()
 	perform := false
