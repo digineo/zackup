@@ -86,9 +86,9 @@ func (sch *scheduler) State() (s SchedulerState) {
 }
 
 func (sch *scheduler) plan() time.Duration {
-	now := time.Now().UTC().Truncate(time.Minute)
+	now := time.Now().UTC()
 	next := sch.config.Service().NextSchedule(now)
-	diff := next.Sub(now).Truncate(time.Minute)
+	diff := next.Sub(now).Truncate(time.Second)
 
 	if diff < time.Minute {
 		diff = time.Minute

@@ -109,7 +109,7 @@ func (s *State) success(host string) {
 	s.mu.Lock()
 	if m, ok := s.results[host]; ok {
 		m.SucceededAt = &t
-		m.SuccessDuration = t.Sub(m.StartedAt)
+		m.SuccessDuration = t.Sub(m.StartedAt).Truncate(time.Millisecond)
 		storeResult(host, true, t, m.SuccessDuration)
 	}
 	s.mu.Unlock()
@@ -120,7 +120,7 @@ func (s *State) failure(host string) {
 	s.mu.Lock()
 	if m, ok := s.results[host]; ok {
 		m.FailedAt = &t
-		m.FailureDuration = t.Sub(m.StartedAt)
+		m.FailureDuration = t.Sub(m.StartedAt).Truncate(time.Millisecond)
 		storeResult(host, false, t, m.FailureDuration)
 	}
 	s.mu.Unlock()
@@ -230,12 +230,12 @@ func (s *State) load() error {
 			t := time.Unix(ival, 0)
 			met.SucceededAt = &t
 		case propLastSDuration:
-			met.SuccessDuration = time.Duration(ival) * time.Second
+			met.SuccessDuration = time.Duration(ival) * time.Millisecond
 		case propLastFailure:
 			t := time.Unix(ival, 0)
 			met.FailedAt = &t
 		case propLastFDuration:
-			met.FailureDuration = time.Duration(ival) * time.Second
+			met.FailureDuration = time.Duration(ival) * time.Millisecond
 		default:
 			// ignore
 		}
@@ -278,7 +278,7 @@ func storeResult(host string, success bool, t time.Time, dur time.Duration) erro
 	args := []string{
 		"set",
 		fmt.Sprintf("%s=%d", propTime, t.Unix()),
-		fmt.Sprintf("%s=%d", propDur, int64(dur/time.Second)),
+		fmt.Sprintf("%s=%d", propDur, int64(dur/time.Millisecond)),
 		filepath.Join(RootDataset, host),
 	}
 	log.WithField("command", append([]string{"zfs"}, args...)).

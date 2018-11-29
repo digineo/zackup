@@ -20,7 +20,7 @@ func statusDur(dur time.Duration) string {
 	if dur <= 0 {
 		return "-"
 	}
-	return dur.Truncate(time.Second).String()
+	return dur.Truncate(time.Millisecond).String()
 }
 
 // statusCmd represents the status command
