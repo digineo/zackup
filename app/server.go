@@ -133,11 +133,11 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 
 	"statusClass": func(m HostMetrics) string {
 		switch m.Status() {
-		case statusFailed:
+		case StatusFailed:
 			return "table-warning"
-		case statusSuccess:
+		case StatusSuccess:
 			return "table-success"
-		case statusRunning:
+		case StatusRunning:
 			return "table-warning"
 		}
 		return ""
@@ -145,11 +145,11 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 
 	"statusIcon": func(m HostMetrics) string {
 		switch m.Status() {
-		case statusFailed:
+		case StatusFailed:
 			return "fas fa-times"
-		case statusSuccess:
+		case StatusSuccess:
 			return "fas fa-check"
-		case statusRunning:
+		case StatusRunning:
 			return "far fa-clock"
 		}
 		return ""

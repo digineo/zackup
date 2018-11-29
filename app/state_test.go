@@ -1,24 +1,9 @@
 package app
 
 import (
-	"fmt"
 	"testing"
 	"time"
 )
-
-func statusString(s MetricStatus) string {
-	switch s {
-	case statusUnknown:
-		return "unknown"
-	case statusSuccess:
-		return "success"
-	case statusFailed:
-		return "failed"
-	case statusRunning:
-		return "running"
-	}
-	return fmt.Sprintf("unknown status: %d", s)
-}
 
 func TestMetricsStatus(t *testing.T) {
 	var t0 time.Time
@@ -31,7 +16,7 @@ func TestMetricsStatus(t *testing.T) {
 		tOK  *time.Time
 		tErr *time.Time
 	}{
-		statusUnknown: {
+		StatusUnknown: {
 			{t0, nil, nil}, // t0 == time.Zero
 			{t0, &t1, &t1}, // && tOK == tErr
 			{t0, &t1, &t2}, // && tErr > tOK
@@ -40,18 +25,18 @@ func TestMetricsStatus(t *testing.T) {
 			{t1, &t1, &t1}, // t0 == tOK == tErr
 			{t1, &t2, &t2}, // tOK > t0 && tErr > t0 && tOK == tErr
 		},
-		statusRunning: {
+		StatusRunning: {
 			{t1, nil, nil}, // t0 > time.Zero
 			{t2, &t1, nil}, // t0 > tOK
 			{t2, nil, &t1}, // t0 > tErr
 			{t2, &t1, &t1}, // t0 > tOK && t0 > tErr
 		},
-		statusFailed: {
+		StatusFailed: {
 			{t1, nil, &t2}, // tErr > t0
 			{t1, &t1, &t2}, // tErr > t0 && tErr > tOK
 			{t1, &t2, &t3}, // tErr > tOK && tOK > t0 && tOK > tStart
 		},
-		statusSuccess: {
+		StatusSuccess: {
 			{t1, &t2, nil}, // tOK > t0
 			{t1, &t2, &t1}, // tOK > t0 && tOK > tErr
 			{t1, &t3, &t2}, // tOK > tErr && tErr > t0 && tErr > tStart
@@ -65,7 +50,7 @@ func TestMetricsStatus(t *testing.T) {
 			}
 			actual := subject.Status()
 			if actual != expected {
-				t.Errorf("case %d: expected %s, got %s\n", i, statusString(expected), statusString(actual))
+				t.Errorf("case %d: expected %s, got %s\n", i, expected, actual)
 			}
 		}
 	}

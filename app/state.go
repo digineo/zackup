@@ -37,29 +37,44 @@ type HostMetrics struct {
 // MetricStatus represents the status of a metric set.
 type MetricStatus int
 
+// All possible MetricStatus values.
 const (
-	statusUnknown MetricStatus = iota
-	statusSuccess
-	statusFailed
-	statusRunning
+	StatusUnknown MetricStatus = iota
+	StatusSuccess
+	StatusFailed
+	StatusRunning
 )
+
+func (s MetricStatus) String() string {
+	switch s {
+	case StatusUnknown:
+		return "unknown"
+	case StatusSuccess:
+		return "success"
+	case StatusFailed:
+		return "failed"
+	case StatusRunning:
+		return "running"
+	}
+	return fmt.Sprintf("%%!MetricStatus(%d)", s)
+}
 
 func (m *metrics) Status() MetricStatus {
 	t0, tOK, tErr := m.StartedAt, m.SucceededAt, m.FailedAt
 
 	if t0.IsZero() {
-		return statusUnknown
+		return StatusUnknown
 	}
 	if (tOK == nil || t0.After(*tOK)) && (tErr == nil || t0.After(*tErr)) {
-		return statusRunning
+		return StatusRunning
 	}
 	if tOK != nil && (tErr == nil || tOK.After(*tErr)) && tOK.After(t0) {
-		return statusSuccess
+		return StatusSuccess
 	}
 	if tErr != nil && (tOK == nil || tErr.After(*tOK)) && tErr.After(t0) {
-		return statusFailed
+		return StatusFailed
 	}
-	return statusUnknown
+	return StatusUnknown
 }
 
 var state = &State{
