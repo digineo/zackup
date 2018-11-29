@@ -152,7 +152,7 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 		case StatusRunning:
 			return "far fa-clock"
 		}
-		return ""
+		return "fas fa-question"
 	},
 }).Parse(`<!doctype html>
 <html>
@@ -194,7 +194,7 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 			<tbody>
 			{{ range .Hosts }}
 				<tr class="{{ statusClass . }}">
-					<td class="text-right"><i class="{{ statusIcon . }}"></i></td>
+					<td class="text-right">{{ .Status }} <i class="{{ statusIcon . }} fa-fw"></i></td>
 					<td class="text-right">{{ .Host }}</td>
 					<td class="text-right">{{ fmtTime .StartedAt }}</td>
 					{{ if .SucceededAt }}
