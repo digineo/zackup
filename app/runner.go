@@ -40,7 +40,7 @@ func PerformBackup(job *config.JobConfig) {
 	defer func() { state.finish(host, err) }()
 	state.start(host)
 
-	m := newSSHMaster(host, job.SSH.Port, job.SSH.User)
+	m := newSSHMaster(host, job.SSH)
 	if err = m.connect(); err != nil {
 		return
 	}

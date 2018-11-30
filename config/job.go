@@ -4,16 +4,18 @@ package config
 type JobConfig struct {
 	host string `yaml:"-"`
 
-	SSH   *sshConfig   `yaml:"ssh"`
+	SSH   *SSHConfig   `yaml:"ssh"`
 	RSync *RsyncConfig `yaml:"rsync"`
 
 	PreScript  Script `yaml:"pre_script"`  // from yaml file
 	PostScript Script `yaml:"post_script"` // from yaml file
 }
 
-type sshConfig struct {
-	User string `yaml:"user"`
-	Port uint16 `yaml:"port"`
+// SSHConfig holds connection parameters
+type SSHConfig struct {
+	User    string `yaml:"user"`    // defaults to "root"
+	Port    uint16 `yaml:"port"`    // defaults to 22
+	Timeout int    `yaml:"timeout"` // number of seconds, defaults to 15
 }
 
 // Host returns the hostname for this job.

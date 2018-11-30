@@ -149,8 +149,9 @@ A host's config file is written in YAML and has this structure:
 
 ```yaml
 ssh:
-  user: string        # username on the remote host
-  port: uint16        # SSH port number
+  user:     string    # username on the remote host
+  port:     uint16    # SSH port number
+  timeout:  int       # timeout for establishing connection
 
 rsync:
   included: []string  # rsync pattern for included files/directories
@@ -183,6 +184,7 @@ rsync!), but you can use this as a start:
 ssh:
   user: root
   port: 22
+  timeout: 10
 rsync:
   included:
   - /etc

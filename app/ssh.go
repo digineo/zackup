@@ -22,8 +22,9 @@ type sshMaster struct {
 	user string
 	port uint16
 
-	controlPath string // SSH multiplexing socket
-	mountPath   string // join(MountBase, host)
+	connectTimeout int    // number of seconds
+	controlPath    string // SSH multiplexing socket
+	mountPath      string // join(MountBase, host)
 
 	tunnel *osexec.Cmd     // foreground SSH process
 	wg     *sync.WaitGroup // for execute/rsync
@@ -31,18 +32,26 @@ type sshMaster struct {
 	mu *sync.Mutex // lock for start/stop
 }
 
-func newSSHMaster(host string, port uint16, user string) *sshMaster {
-	return &sshMaster{
+func newSSHMaster(host string, cfg *config.SSHConfig) *sshMaster {
+	master := &sshMaster{
 		host: host,
-		user: user,
-		port: port,
+		user: cfg.User,
+		port: cfg.Port,
 
-		controlPath: filepath.Join(MountBase, ".zackup_%h_%C"),
-		mountPath:   filepath.Join(MountBase, host),
+		connectTimeout: cfg.Timeout,
+		controlPath:    filepath.Join(MountBase, ".zackup_%h_%C"),
+		mountPath:      filepath.Join(MountBase, host),
 
 		mu: &sync.Mutex{},
 		wg: &sync.WaitGroup{},
 	}
+	if master.port == 0 {
+		master.port = 22
+	}
+	if master.user == "" {
+		master.user = "root"
+	}
+	return master
 }
 
 // ssh user@host -p port -o ControlMaster=yes -o ControlPath=/zackup/ssh/$uuid
@@ -55,9 +64,14 @@ func (c *sshMaster) connect() error {
 	}
 
 	args := []string{
+		"-S", c.controlPath, // == -oControlPath=...
 		"-o", "ControlMaster=yes",
 		"-o", "StrictHostKeyChecking=yes", // default=ask (prompt)
-		"-S", c.controlPath, // == -oControlPath=...
+	}
+	if c.connectTimeout > 0 {
+		args = append(args, "-o", fmt.Sprintf("ConnectTimeout=%d", c.connectTimeout))
+	}
+	args = append(args,
 		"-n", // disable stdin
 		"-N", // do not execute command on remote server
 		"-T", // disable TTY allocation
@@ -65,7 +79,7 @@ func (c *sshMaster) connect() error {
 		"-p", strconv.Itoa(int(c.port)),
 		"-l", c.user,
 		c.host,
-	}
+	)
 	cmd := osexec.Command("ssh", args...)
 
 	log.WithFields(logrus.Fields{
@@ -121,14 +135,22 @@ func (c *sshMaster) execute(script []string) error {
 	c.wg.Add(1)
 	defer c.wg.Done()
 
-	cmd := osexec.Command("ssh",
+	args := []string{
 		"-S", c.controlPath, // == -oControlPath=...
+		"-o", "ControlMaster=yes",
+		"-o", "StrictHostKeyChecking=yes", // default=ask (prompt)
+	}
+	if c.connectTimeout > 0 {
+		args = append(args, "-o", fmt.Sprintf("ConnectTimeout=%d", c.connectTimeout))
+	}
+	args = append(args,
 		"-p", strconv.Itoa(int(c.port)),
-		"-l", c.user,
 		"-x", // disable X11 forwarding
+		"-l", c.user,
 		c.host,
 		"/bin/sh", "-esx",
 	)
+	cmd := osexec.Command("ssh", args...)
 
 	var o, e bytes.Buffer
 	cmd.Stdout = &o
@@ -189,12 +211,13 @@ func (c *sshMaster) rsync(r *config.RsyncConfig) error {
 		"host":   c.host,
 	})
 
-	args := r.BuildArgVector(
-		/* ssh */ fmt.Sprintf("ssh -S %s -p %d -x -oStrictHostKeyChecking=yes", c.controlPath, c.port),
-		/* src */ fmt.Sprintf("%s@%s:", c.user, c.host),
-		/* dst */ c.mountPath,
-	)
+	sshArg := fmt.Sprintf("ssh -S %s -p %d -x -oStrictHostKeyChecking=yes", c.controlPath, c.port)
+	if c.connectTimeout > 0 {
+		sshArg += fmt.Sprintf(" -oConnectTimeout=%d", c.connectTimeout)
+	}
+	srcArg := fmt.Sprintf("%s@%s:", c.user, c.host)
 
+	args := r.BuildArgVector(sshArg, srcArg, c.mountPath)
 	cmd := osexec.Command("rsync", args...)
 
 	done, wg, err := captureOutput(l, cmd)
