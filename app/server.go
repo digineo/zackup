@@ -93,67 +93,86 @@ func (srv *server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	buf.WriteTo(w)
 }
 
+func tplFmtTime(t interface{}) template.HTML {
+	var val *time.Time
+	switch t.(type) {
+	case time.Time:
+		ref := t.(time.Time)
+		val = &ref
+	case *time.Time:
+		val = t.(*time.Time)
+	default:
+		return template.HTML("invalid date")
+	}
+
+	if t == nil || val == nil {
+		return tplUnavailable()
+	}
+
+	*val = val.In(time.Local).Truncate(time.Second)
+	timeTag := fmt.Sprintf(`<time datetime="%s">%s</time>`,
+		val.Format(time.RFC3339),
+		val.Format("2006-01-02, 15:04"))
+	return template.HTML(timeTag)
+}
+
+func tplFmtDuration(d interface{}) template.HTML {
+	var val *time.Duration
+	switch d.(type) {
+	case time.Duration:
+		ref := d.(time.Duration)
+		val = &ref
+	case *time.Duration:
+		val = d.(*time.Duration)
+	default:
+		return template.HTML("invalid duration")
+	}
+
+	if d == nil || val == nil {
+		return tplUnavailable()
+	}
+	if *val > 10*time.Second {
+		*val = val.Truncate(100 * time.Millisecond)
+	}
+	return template.HTML(val.String())
+}
+
+func tplStatusClass(m HostMetrics) string {
+	switch m.Status() {
+	case StatusFailed:
+		return "table-warning"
+	case StatusSuccess:
+		return "table-success"
+	case StatusRunning:
+		return "table-warning"
+	}
+	return ""
+}
+
+func tplStatusIcon(m HostMetrics) string {
+	switch m.Status() {
+	case StatusFailed:
+		return "fas fa-times"
+	case StatusSuccess:
+		return "fas fa-check"
+	case StatusRunning:
+		return "far fa-spinner fa-pulse"
+	case StatusPrimed:
+		return "far fa-clock"
+	}
+	return "fas fa-question"
+}
+
+func tplUnavailable() template.HTML {
+	return template.HTML(`<abbr class="text-muted" title="not available">n/a</abbr>`)
+}
+
 var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
-	"fmtTime": func(t interface{}) template.HTML {
-		var val *time.Time
-		switch t.(type) {
-		case time.Time:
-			ref := t.(time.Time)
-			val = &ref
-		case *time.Time:
-			val = t.(*time.Time)
-		default:
-			return template.HTML("invalid date")
-		}
-
-		if t == nil || val == nil {
-			return template.HTML("n/a")
-		}
-		const format = "2006-01-02, 15:04"
-		return template.HTML(val.In(time.Local).Truncate(time.Second).Format(format))
-	},
-
-	"fmtDuration": func(d interface{}) template.HTML {
-		var val *time.Duration
-		switch d.(type) {
-		case time.Duration:
-			ref := d.(time.Duration)
-			val = &ref
-		case *time.Duration:
-			val = d.(*time.Duration)
-		default:
-			return template.HTML("invalid duration")
-		}
-
-		if d == nil || val == nil {
-			return template.HTML("n/a")
-		}
-		return template.HTML(val.String())
-	},
-
-	"statusClass": func(m HostMetrics) string {
-		switch m.Status() {
-		case StatusFailed:
-			return "table-warning"
-		case StatusSuccess:
-			return "table-success"
-		case StatusRunning:
-			return "table-warning"
-		}
-		return ""
-	},
-
-	"statusIcon": func(m HostMetrics) string {
-		switch m.Status() {
-		case StatusFailed:
-			return "fas fa-times"
-		case StatusSuccess:
-			return "fas fa-check"
-		case StatusRunning:
-			return "far fa-clock"
-		}
-		return "fas fa-question"
-	},
+	"fmtTime":     tplFmtTime,
+	"fmtDuration": tplFmtDuration,
+	"statusClass": tplStatusClass,
+	"statusIcon":  tplStatusIcon,
+	"na":          tplUnavailable,
 }).Parse(`<!doctype html>
 <html>
 <head>
@@ -173,7 +192,7 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 			<caption class="small">
 				<span class="float-right">
 				{{ if .Scheduler.Active }}
-					active since {{ fmtTime .Scheduler.NextRun }}
+					<strong class="text-success">active</strong> since {{ fmtTime .Scheduler.NextRun }}
 				{{ else }}
 					next run scheduled at {{ fmtTime .Scheduler.NextRun }}
 				{{ end }}
@@ -182,8 +201,8 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 			</caption>
 			<thead>
 				<tr>
-					<th class="text-right">Status</th>
-					<th class="text-right">Host</th>
+					<th>Host</th>
+					<th>Status</th>
 					<th class="text-right">last started</th>
 					<th class="text-right">last succeeded</th>
 					<th>duration</th>
@@ -194,22 +213,28 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 			<tbody>
 			{{ range .Hosts }}
 				<tr class="{{ statusClass . }}">
-					<td class="text-right">{{ .Status }} <i class="{{ statusIcon . }} fa-fw"></i></td>
-					<td class="text-right">{{ .Host }}</td>
-					<td class="text-right">{{ fmtTime .StartedAt }}</td>
+					<td><tt>{{ .Host }}</tt></td>
+					<td><i class="{{ statusIcon . }} fa-fw"></i> {{ .Status }}</td>
+					<td class="text-right">
+						{{ if .StartedAt.IsZero }}
+							{{ na }}
+						{{ else }}
+							{{ fmtTime .StartedAt }}
+						{{ end }}
+					</td>
 					{{ if .SucceededAt }}
 						<td class="text-right">{{ fmtTime .SucceededAt }}</td>
 						<td>{{ fmtDuration .SuccessDuration }}</td>
 					{{ else }}
-						<td class="text-right">n/a</td>
-						<td>n/a</td>
+						<td class="text-right">{{ na }}</td>
+						<td>{{ na }}</td>
 					{{ end }}
 					{{ if .FailedAt }}
 						<td class="text-right">{{ fmtTime .FailedAt }}</td>
 						<td>{{ fmtDuration .FailureDuration }}</td>
 					{{ else }}
-						<td class="text-right">n/a</td>
-						<td>n/a</td>
+						<td class="text-right">{{ na }}</td>
+						<td>{{ na }}</td>
 					{{ end }}
 				</tr>
 			{{ end }}
