@@ -162,13 +162,11 @@ func (c *sshMaster) execute(script []string) error {
 	in := bufio.NewWriter(stdin)
 	for _, l := range script {
 		if _, err = in.WriteString(l + "\n"); err != nil {
-			logerr(err, "failed to send script line",
-				"current-line", l)
+			logerr(err, "failed to send script line", "current-line", l)
 			return err
 		}
 		if err = in.Flush(); err != nil {
-			logerr(err, "failed to execute script line",
-				"current-line", l)
+			logerr(err, "failed to execute script line", "current-line", l)
 			return err
 		}
 	}

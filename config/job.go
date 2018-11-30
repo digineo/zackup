@@ -54,18 +54,10 @@ func (j *JobConfig) mergeGlobals(globals *JobConfig) {
 	}
 
 	// globals.PreScript
-	if tmp := globals.PreScript.inline; len(tmp) > 0 {
-		j.PreScript.inline = append(tmp, j.PreScript.inline...)
-	}
-	if tmp := globals.PreScript.scripts; len(tmp) > 0 {
-		j.PreScript.scripts = append(tmp, j.PreScript.scripts...)
-	}
+	j.PreScript.inline = append(globals.PreScript.inline, j.PreScript.inline...)
+	j.PreScript.scripts = append(globals.PreScript.scripts, j.PreScript.scripts...)
 
 	// globals.PostScript
-	if tmp := globals.PostScript.inline; len(tmp) > 0 {
-		j.PostScript.inline = append(tmp, j.PostScript.inline...)
-	}
-	if tmp := globals.PostScript.scripts; len(tmp) > 0 {
-		j.PostScript.scripts = append(tmp, j.PostScript.scripts...)
-	}
+	j.PostScript.inline = append(globals.PostScript.inline, j.PostScript.inline...)
+	j.PostScript.scripts = append(globals.PostScript.scripts, j.PostScript.scripts...)
 }
