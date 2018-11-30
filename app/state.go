@@ -40,6 +40,7 @@ type MetricStatus int
 // All possible MetricStatus values.
 const (
 	StatusUnknown MetricStatus = iota
+	StatusPrimed
 	StatusSuccess
 	StatusFailed
 	StatusRunning
@@ -49,6 +50,8 @@ func (s MetricStatus) String() string {
 	switch s {
 	case StatusUnknown:
 		return "unknown"
+	case StatusPrimed:
+		return "primed"
 	case StatusSuccess:
 		return "success"
 	case StatusFailed:
@@ -63,7 +66,7 @@ func (m *metrics) Status() MetricStatus {
 	t0, tOK, tErr := m.StartedAt, m.SucceededAt, m.FailedAt
 
 	if t0.IsZero() {
-		return StatusUnknown
+		return StatusPrimed
 	}
 	if (tOK == nil || t0.After(*tOK)) && (tErr == nil || t0.After(*tErr)) {
 		return StatusRunning
@@ -144,8 +147,8 @@ var zackupProps = strings.Join([]string{
 }, ",")
 
 // LoadState reads the performance metrics stored in the data
-func LoadState() error {
-	return state.load()
+func LoadState(hosts []string) error {
+	return state.load(hosts)
 }
 
 // ExportState dumps the current performance metrics.
@@ -153,37 +156,47 @@ func ExportState() []HostMetrics {
 	return state.export()
 }
 
-func (s *State) load() error {
+func (s *State) load(hosts []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, host := range hosts {
+		if _, ok := s.results[host]; !ok {
+			s.results[host] = &metrics{}
+		}
+		if err := s.loadHost(host); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// unsafe, caller must lock s.mu
+func (s *State) loadHost(host string) error {
+	dataset := filepath.Join(RootDataset, host)
 	args := []string{
-		"get", "-r", "-H", "-p",
+		"get", "-H", "-p",
 		"-t", "filesystem",
 		"-s", "local",
 		"-o", "name,property,value",
 		zackupProps,
-		RootDataset,
+		dataset,
 	}
 
 	o, e, err := exec("zfs", args...)
-
-	logerr := func(err error) {
+	if err != nil {
+		// dataset does not exit, ignore
 		f := appendStdlogs(logrus.Fields{
 			logrus.ErrorKey: err,
 			"command":       append([]string{"zfs"}, args...),
 		}, o, e)
-		log.WithFields(f).Error("failed to load state")
-	}
-
-	if err != nil {
-		logerr(err)
-		return err
+		log.WithFields(f).Trace("failed to load state")
+		return nil
 	}
 
 	isTab := func(r rune) bool { return r == '\t' }
 	rds := RootDataset + "/"
 	scan := bufio.NewScanner(o)
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	for scan.Scan() {
 		cols := strings.FieldsFunc(scan.Text(), isTab)
@@ -196,17 +209,17 @@ func (s *State) load() error {
 			"propval":  cols[2],
 		})
 
-		if cols[0] == RootDataset || !strings.HasPrefix(cols[0], rds) {
-			l.Trace("ignore non-child dataset")
-			continue // we're only interested in the child datasets
+		if cols[0] != dataset {
+			l.Trace("ignore child dataset")
+			continue
 		}
 		if !strings.HasPrefix(cols[1], propNS) {
 			l.Trace("ignore non-zackup properties")
-			continue // we're only interested in our properties
+			continue
 		}
 		if cols[2] == "-" {
 			l.Trace("ignore empty values")
-			continue // ignore "unknown value"
+			continue
 		}
 
 		host := strings.TrimPrefix(cols[0], rds)
@@ -219,9 +232,8 @@ func (s *State) load() error {
 		ival, err := strconv.ParseInt(cols[2], 10, 64)
 		if err != nil {
 			l.Trace("ignore non-integer values")
-			continue // ignore non-integer values
+			continue
 		}
-		l.Trace("accepting line")
 
 		switch cols[1] {
 		case propLastStart:
@@ -237,12 +249,18 @@ func (s *State) load() error {
 		case propLastFDuration:
 			met.FailureDuration = time.Duration(ival) * time.Millisecond
 		default:
-			// ignore
+			l.Trace("ignore unknown property")
+			continue
 		}
+		l.Trace("accepted line")
 	}
 
 	if err := scan.Err(); err != nil {
-		logerr(err)
+		f := appendStdlogs(logrus.Fields{
+			logrus.ErrorKey: err,
+			"command":       append([]string{"zfs"}, args...),
+		}, o, e)
+		log.WithFields(f).Error("failed to load state")
 		return err
 	}
 	return nil

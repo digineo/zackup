@@ -72,6 +72,10 @@ func initConfig() {
 	}
 	l.Info("config tree read")
 
+	hosts := tree.Hosts()
+	injectHostArgs(hosts, runCmd)
+	injectHostArgs(hosts, statusCmd)
+
 	if svc := tree.Service(); svc != nil {
 		if verbosity == 0 {
 			gl.SetLevel(svc.LogLevel)
@@ -82,14 +86,10 @@ func initConfig() {
 		app.RootDataset = svc.RootDataset
 		app.MountBase = svc.MountBase
 
-		if err := app.LoadState(); err != nil {
+		if err := app.LoadState(hosts); err != nil {
 			l.WithError(err).Fatalf("cannot restore state from ZFS metadata")
 		}
 	}
-
-	hosts := tree.Hosts()
-	injectHostArgs(hosts, runCmd)
-	injectHostArgs(hosts, statusCmd)
 }
 
 func injectHostArgs(hosts []string, cmd *cobra.Command) {

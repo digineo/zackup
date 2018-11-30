@@ -23,6 +23,27 @@ func statusDur(dur time.Duration) string {
 	return dur.Truncate(time.Millisecond).String()
 }
 
+func colorize(s app.MetricStatus) string {
+	var color string
+
+	switch s {
+	case app.StatusUnknown:
+		color = "1;30" // "brigth black"
+	case app.StatusPrimed:
+		color = "0;36" // cyan
+	case app.StatusSuccess:
+		color = "1;32" // green
+	case app.StatusFailed:
+		color = "1;31" // red
+	case app.StatusRunning:
+		color = "0;34" // blue
+	}
+	if color != "" {
+		return fmt.Sprintf("\033[%sm%s\033[0m", color, s.String())
+	}
+	return s.String()
+}
+
 // statusCmd represents the status command
 var statusCmd = &cobra.Command{
 	Use:   "status",
@@ -40,7 +61,12 @@ var statusCmd = &cobra.Command{
 
 		for _, host := range exported {
 			s := host.Status()
-			fmt.Printf("%-[1]*s  status       %s\n", longest, host.Host, s)
+			fmt.Printf("%-[1]*s  status       %s\n", longest, host.Host, colorize(s))
+
+			if s == app.StatusPrimed {
+				// we don't know anything yet
+				continue
+			}
 
 			if s == app.StatusUnknown || s == app.StatusRunning {
 				fmt.Printf("%s  started      %s\n", ws, statusTime(&host.StartedAt))

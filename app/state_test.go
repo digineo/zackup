@@ -16,12 +16,13 @@ func TestMetricsStatus(t *testing.T) {
 		tOK  *time.Time
 		tErr *time.Time
 	}{
-		StatusUnknown: {
+		StatusPrimed: {
 			{t0, nil, nil}, // t0 == time.Zero
 			{t0, &t1, &t1}, // && tOK == tErr
 			{t0, &t1, &t2}, // && tErr > tOK
 			{t0, &t3, &t2}, // && tOK > tErr
-
+		},
+		StatusUnknown: {
 			{t1, &t1, &t1}, // t0 == tOK == tErr
 			{t1, &t2, &t2}, // tOK > t0 && tErr > t0 && tOK == tErr
 		},
