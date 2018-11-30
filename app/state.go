@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,16 +20,19 @@ type State struct {
 }
 
 type metrics struct {
-	StartedAt       time.Time     `json:"started_at,omitempty"`
-	SucceededAt     *time.Time    `json:"succeeded_at,omitempty"`
-	SuccessDuration time.Duration `json:"success_duration,omitempty"`
-	FailedAt        *time.Time    `json:"failed_at,omitempty"`
-	FailureDuration time.Duration `json:"failure_duration,omitempty"`
+	StartedAt            time.Time
+	SucceededAt          *time.Time
+	SuccessDuration      time.Duration
+	FailedAt             *time.Time
+	FailureDuration      time.Duration
+	SpaceUsedTotal       uint64
+	SpaceUsedBySnapshots uint64
+	CompressionFactor    float64
 }
 
 // HostMetrics represents a snapshot of the current metrics for a host.
 type HostMetrics struct {
-	Host string `json:"host"`
+	Host string
 	metrics
 }
 
@@ -129,23 +131,6 @@ func (s *State) failure(host string) {
 	s.mu.Unlock()
 }
 
-const (
-	propNS            = "de.digineo.zackup:"
-	propLastStart     = propNS + "last_start" // unix timestamp
-	propLastSuccess   = propNS + "s_date"     // unix timestamp
-	propLastSDuration = propNS + "s_duration" // duration
-	propLastFailure   = propNS + "f_date"     // unix timestamp
-	propLastFDuration = propNS + "f_duration" // duration
-)
-
-var zackupProps = strings.Join([]string{
-	propLastStart,
-	propLastSuccess,
-	propLastSDuration,
-	propLastFailure,
-	propLastFDuration,
-}, ",")
-
 // LoadState reads the performance metrics stored in the data
 func LoadState(hosts []string) error {
 	return state.load(hosts)
@@ -177,7 +162,7 @@ func (s *State) loadHost(host string) error {
 	args := []string{
 		"get", "-H", "-p",
 		"-t", "filesystem",
-		"-s", "local",
+		"-s", "local,none",
 		"-o", "name,property,value",
 		zackupProps,
 		dataset,
@@ -213,12 +198,13 @@ func (s *State) loadHost(host string) error {
 			l.Trace("ignore child dataset")
 			continue
 		}
-		if !strings.HasPrefix(cols[1], propNS) {
-			l.Trace("ignore non-zackup properties")
-			continue
-		}
 		if cols[2] == "-" {
 			l.Trace("ignore empty values")
+			continue
+		}
+		decoder, ok := propDecoder[cols[1]]
+		if !ok {
+			l.Trace("ignore non-zackup property")
 			continue
 		}
 
@@ -229,27 +215,8 @@ func (s *State) loadHost(host string) error {
 			s.results[host] = met
 		}
 
-		ival, err := strconv.ParseInt(cols[2], 10, 64)
-		if err != nil {
-			l.Trace("ignore non-integer values")
-			continue
-		}
-
-		switch cols[1] {
-		case propLastStart:
-			met.StartedAt = time.Unix(ival, 0)
-		case propLastSuccess:
-			t := time.Unix(ival, 0)
-			met.SucceededAt = &t
-		case propLastSDuration:
-			met.SuccessDuration = time.Duration(ival) * time.Millisecond
-		case propLastFailure:
-			t := time.Unix(ival, 0)
-			met.FailedAt = &t
-		case propLastFDuration:
-			met.FailureDuration = time.Duration(ival) * time.Millisecond
-		default:
-			l.Trace("ignore unknown property")
+		if err := decoder(met, cols[2]); err != nil {
+			l.WithError(err).Trace("failed to parse value, ignore")
 			continue
 		}
 		l.Trace("accepted line")
@@ -269,7 +236,7 @@ func (s *State) loadHost(host string) error {
 func storeStart(host string, t time.Time) error {
 	args := []string{
 		"set",
-		fmt.Sprintf("%s=%d", propLastStart, t.Unix()),
+		fmt.Sprintf("%s=%d", propZackupLastStart, t.Unix()),
 		filepath.Join(RootDataset, host),
 	}
 
@@ -288,9 +255,9 @@ func storeStart(host string, t time.Time) error {
 }
 
 func storeResult(host string, success bool, t time.Time, dur time.Duration) error {
-	var propTime, propDur = propLastFailure, propLastFDuration
+	var propTime, propDur = propZackupLastFailureDate, propZackupLastFailureDuration
 	if success {
-		propTime, propDur = propLastSuccess, propLastSDuration
+		propTime, propDur = propZackupLastSuccessDate, propZackupLastSuccessDuration
 	}
 
 	args := []string{
@@ -322,11 +289,14 @@ func (s *State) export() (ex []HostMetrics) {
 		ex = append(ex, HostMetrics{
 			Host: host,
 			metrics: metrics{
-				StartedAt:       met.StartedAt,
-				SucceededAt:     met.SucceededAt,
-				SuccessDuration: met.SuccessDuration,
-				FailedAt:        met.FailedAt,
-				FailureDuration: met.FailureDuration,
+				StartedAt:            met.StartedAt,
+				SucceededAt:          met.SucceededAt,
+				SuccessDuration:      met.SuccessDuration,
+				FailedAt:             met.FailedAt,
+				FailureDuration:      met.FailureDuration,
+				SpaceUsedTotal:       met.SpaceUsedTotal,
+				SpaceUsedBySnapshots: met.SpaceUsedBySnapshots,
+				CompressionFactor:    met.CompressionFactor,
 			},
 		})
 	}

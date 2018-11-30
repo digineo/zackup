@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"git.digineo.de/digineo/zackup/graylog"
+	humanize "github.com/dustin/go-humanize"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
@@ -91,7 +92,7 @@ func (srv *server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	buf.WriteTo(w)
 }
 
-func tplFmtTime(t interface{}) template.HTML {
+func tplFmtTime(t interface{}, human bool) template.HTML {
 	var val *time.Time
 	switch t.(type) {
 	case time.Time:
@@ -108,9 +109,17 @@ func tplFmtTime(t interface{}) template.HTML {
 	}
 
 	*val = val.In(time.Local).Truncate(time.Second)
-	timeTag := fmt.Sprintf(`<time datetime="%s">%s</time>`,
-		val.Format(time.RFC3339),
-		val.Format("2006-01-02, 15:04"))
+	var timeTag string
+	if human {
+		timeTag = fmt.Sprintf(`<time datetime="%s" title="%s">%s</time>`,
+			val.Format(time.RFC3339),
+			val.Format("2006-01-02, 15:04"),
+			humanize.Time(*val))
+	} else {
+		timeTag = fmt.Sprintf(`<time datetime="%s">%s</time>`,
+			val.Format(time.RFC3339),
+			val.Format("2006-01-02, 15:04"))
+	}
 	return template.HTML(timeTag)
 }
 
@@ -165,12 +174,17 @@ func tplUnavailable() template.HTML {
 	return template.HTML(`<abbr class="text-muted" title="not available">n/a</abbr>`)
 }
 
+func tplHumanBytes(val uint64) template.HTML {
+	return template.HTML(humanize.Bytes(val))
+}
+
 var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 	"fmtTime":     tplFmtTime,
 	"fmtDuration": tplFmtDuration,
 	"statusClass": tplStatusClass,
 	"statusIcon":  tplStatusIcon,
 	"na":          tplUnavailable,
+	"humanBytes":  tplHumanBytes,
 }).Parse(`<!doctype html>
 <html>
 <head>
@@ -190,49 +204,58 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 			<caption class="small">
 				<span class="float-right">
 				{{ if .Scheduler.Active }}
-					<strong class="text-success">active</strong> since {{ fmtTime .Scheduler.NextRun }}
+					<strong class="text-success">active</strong> since {{ fmtTime .Scheduler.NextRun false }}
 				{{ else }}
-					next run scheduled at {{ fmtTime .Scheduler.NextRun }}
+					next run scheduled at {{ fmtTime .Scheduler.NextRun false }}
 				{{ end }}
 				</span>
-				Date: {{ fmtTime .Time }}
+				Date: {{ fmtTime .Time false }}
 			</caption>
 			<thead>
 				<tr>
 					<th>Host</th>
 					<th>Status</th>
-					<th class="text-right">last started</th>
-					<th class="text-right">last succeeded</th>
-					<th>duration</th>
-					<th class="text-right">last failed</th>
-					<th>duration</th>
+					<th>last started</th>
+					<th>last succeeded</th>
+					<th>last failed</th>
+					<th>Space used (total)</th>
+					<th>Space used (by snapshots)</th>
+					<th>Compression factor</th>
 				</tr>
 			</thead>
 			<tbody>
 			{{ range .Hosts }}
 				<tr class="{{ statusClass . }}">
 					<td><tt>{{ .Host }}</tt></td>
-					<td><i class="{{ statusIcon . }} fa-fw"></i> {{ .Status }}</td>
-					<td class="text-right">
-						{{ if .StartedAt.IsZero }}
-							{{ na }}
-						{{ else }}
-							{{ fmtTime .StartedAt }}
-						{{ end }}
-					</td>
-					{{ if .SucceededAt }}
-						<td class="text-right">{{ fmtTime .SucceededAt }}</td>
-						<td>{{ fmtDuration .SuccessDuration }}</td>
-					{{ else }}
-						<td class="text-right">{{ na }}</td>
+					<td><i class="{{ statusIcon . }} fa-fw"></i>&nbsp;{{ .Status }}</td>
+					{{ if .StartedAt.IsZero }}
 						<td>{{ na }}</td>
-					{{ end }}
-					{{ if .FailedAt }}
-						<td class="text-right">{{ fmtTime .FailedAt }}</td>
-						<td>{{ fmtDuration .FailureDuration }}</td>
-					{{ else }}
-						<td class="text-right">{{ na }}</td>
 						<td>{{ na }}</td>
+						<td>{{ na }}</td>
+						<td>{{ na }}</td>
+						<td>{{ na }}</td>
+						<td>{{ na }}</td>
+					{{ else }}
+						<td>{{ fmtTime .StartedAt true }}</td>
+						<td>
+							{{ if .SucceededAt }}
+								{{ fmtTime .SucceededAt true }}
+								<span class="badge badge-secondary">{{ fmtDuration .SuccessDuration }}</span>
+							{{ else }}
+								{{ na }}
+							{{ end }}
+						</td>
+						<td>
+							{{ if .FailedAt }}
+								{{ fmtTime .FailedAt true }}
+								<span class="badge badge-secondary">{{ fmtDuration .FailureDuration }}</span>
+							{{ else }}
+								{{ na }}
+							{{ end }}
+						</td>
+						<td>{{ humanBytes .SpaceUsedTotal }}</td>
+						<td>{{ humanBytes .SpaceUsedBySnapshots }}</td>
+						<td>{{ printf "%0.2f" .CompressionFactor }}</td>
 					{{ end }}
 				</tr>
 			{{ end }}

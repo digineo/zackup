@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"git.digineo.de/digineo/zackup/app"
+	humanize "github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 )
 
@@ -61,7 +62,7 @@ var statusCmd = &cobra.Command{
 
 		for _, host := range exported {
 			s := host.Status()
-			fmt.Printf("%-[1]*s  status       %s\n", longest, host.Host, colorize(s))
+			fmt.Printf("%-[1]*s  status            %s\n", longest, host.Host, colorize(s))
 
 			if s == app.StatusPrimed {
 				// we don't know anything yet
@@ -69,18 +70,22 @@ var statusCmd = &cobra.Command{
 			}
 
 			if s == app.StatusUnknown || s == app.StatusRunning {
-				fmt.Printf("%s  started      %s\n", ws, statusTime(&host.StartedAt))
+				fmt.Printf("%s  started           %s\n", ws, statusTime(&host.StartedAt))
 			}
 			if s == app.StatusUnknown || s == app.StatusSuccess {
 				t := statusTime(host.SucceededAt)
 				d := statusDur(host.SuccessDuration)
-				fmt.Printf("%s  succeeded at %s (took %s)\n", ws, t, d)
+				fmt.Printf("%s  succeeded at      %s (took %s)\n", ws, t, d)
 			}
 			if s == app.StatusUnknown || s == app.StatusFailed {
 				t := statusTime(host.FailedAt)
 				d := statusDur(host.FailureDuration)
-				fmt.Printf("%s  failed at    %s (took %s)\n", ws, t, d)
+				fmt.Printf("%s  failed at         %s (took %s)\n", ws, t, d)
 			}
+
+			fmt.Printf("%s  space used        %s\n", ws, humanize.Bytes(host.SpaceUsedTotal))
+			fmt.Printf("%s  used by snapshots %s\n", ws, humanize.Bytes(host.SpaceUsedBySnapshots))
+			fmt.Printf("%s  compression       %0.2fx\n", ws, host.CompressionFactor)
 		}
 	},
 }
