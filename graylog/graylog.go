@@ -55,7 +55,7 @@ func (gl *middleware) Fire(ent *logrus.Entry) error {
 	gl.RLock()
 	defer gl.RUnlock()
 
-	if gl.hook == nil || ent.Level < gl.level {
+	if gl.hook == nil || ent.Level > gl.level {
 		return nil
 	}
 	return gl.hook.Fire(ent)
