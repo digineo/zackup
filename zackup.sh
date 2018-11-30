@@ -1,4 +1,4 @@
 #!/bin/sh
 
-export ZACKUP_ROOT="$(pwd)/testdata"
-exec go run main.go $*
+make zackup.linux
+exec ./zackup.linux --root "$(pwd)/testdata" $*
