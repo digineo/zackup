@@ -11,6 +11,7 @@ import (
 
 	"git.digineo.de/digineo/zackup/graylog"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
 
@@ -43,8 +44,9 @@ func NewHTTP(bind string, port uint16, s Scheduler) HTTP {
 			WriteTimeout: 1 * time.Second,
 		},
 	}
+
 	mux := mux.NewRouter()
-	mux.HandleFunc("/-/metrics", srv.promStub).Methods(http.MethodGet)
+	mux.Handle("/-/metrics", promhttp.Handler()).Methods(http.MethodGet)
 	mux.HandleFunc("/", srv.handleIndex).Methods(http.MethodGet)
 	mux.Use(graylog.NewMuxLogger(srv.logger))
 
@@ -63,10 +65,6 @@ func (srv *server) Stop() {
 	if err := srv.Shutdown(context.Background()); err != nil {
 		srv.logger.WithError(err).Error("unexpected shutdown")
 	}
-}
-
-func (srv *server) promStub(w http.ResponseWriter, r *http.Request) {
-	log.Error("todo")
 }
 
 func (srv *server) handleIndex(w http.ResponseWriter, r *http.Request) {
