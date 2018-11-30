@@ -2,7 +2,6 @@ package app
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -152,50 +151,51 @@ func (c *sshMaster) execute(script []string) error {
 	)
 	cmd := osexec.Command("ssh", args...)
 
-	var o, e bytes.Buffer
-	cmd.Stdout = &o
-	cmd.Stderr = &e
+	l := log.WithFields(logrus.Fields{
+		"prefix": "ssh.execute",
+		"host":   c.host,
+	})
 
-	logerr := func(err error, msg string, extra ...string) {
-		f := appendStdlogs(logrus.Fields{
-			logrus.ErrorKey: err,
-			"prefix":        "ssh.execute",
-			"host":          c.host,
-		}, &o, &e)
-
-		for i := 0; i < len(extra); i += 2 {
-			f[extra[i]] = extra[i+1]
-		}
-		log.WithFields(f).Error(msg)
+	done, wg, err := captureOutput(l, cmd)
+	if err != nil {
+		return err
 	}
+	defer done()
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		logerr(err, "could not get stdin")
+		l.WithError(err).Error("could not get stdin")
 		return err
 	}
 	defer stdin.Close()
 
 	if err = cmd.Start(); err != nil {
-		logerr(err, "failed to start process")
+		l.WithError(err).Error("failed to start process")
 		return err
 	}
 
 	in := bufio.NewWriter(stdin)
-	for _, l := range script {
-		if _, err = in.WriteString(l + "\n"); err != nil {
-			logerr(err, "failed to send script line", "current-line", l)
+	for _, line := range script {
+		if _, err = in.WriteString(line + "\n"); err != nil {
+			l.WithFields(logrus.Fields{
+				logrus.ErrorKey: err,
+				"current-line":  line,
+			}).Error("failed to send script")
 			return err
 		}
 		if err = in.Flush(); err != nil {
-			logerr(err, "failed to execute script line", "current-line", l)
+			l.WithFields(logrus.Fields{
+				logrus.ErrorKey: err,
+				"current-line":  line,
+			}).Error("failed to execute script")
 			return err
 		}
 	}
 	stdin.Close()
+	wg.Wait()
 
 	if err = cmd.Wait(); err != nil {
-		logerr(err, "unexpected termination")
+		l.WithError(err).Error("unexpected termination")
 		return err
 	}
 	return nil
