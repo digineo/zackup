@@ -20,7 +20,7 @@ var runCmd = &cobra.Command{
 		for _, host := range args {
 			job := tree.Host(host)
 			if job == nil {
-				log.WithField("host", host).Warn("unknown host, ignoring")
+				log.WithField("job", host).Warn("unknown host, ignoring")
 				continue
 			}
 			queue.Enqueue(job)

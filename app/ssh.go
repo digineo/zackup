@@ -83,7 +83,7 @@ func (c *sshMaster) connect() error {
 
 	log.WithFields(logrus.Fields{
 		"prefix": "ssh.master",
-		"host":   c.host,
+		"job":    c.host,
 		"args":   args,
 	}).Info("Starting SSH tunnel")
 
@@ -104,7 +104,7 @@ func (c *sshMaster) close() {
 
 	l := log.WithFields(logrus.Fields{
 		"prefix": "ssh.master",
-		"host":   c.host,
+		"job":    c.host,
 	})
 
 	// wait for running commands to finish
@@ -153,7 +153,7 @@ func (c *sshMaster) execute(script []string) error {
 
 	l := log.WithFields(logrus.Fields{
 		"prefix": "ssh.execute",
-		"host":   c.host,
+		"job":    c.host,
 	})
 
 	done, wg, err := captureOutput(l, cmd)
@@ -208,7 +208,7 @@ func (c *sshMaster) rsync(r *config.RsyncConfig) error {
 
 	l := log.WithFields(logrus.Fields{
 		"prefix": "ssh.rsync",
-		"host":   c.host,
+		"job":    c.host,
 	})
 
 	sshArg := fmt.Sprintf("ssh -S %s -p %d -x -oStrictHostKeyChecking=yes", c.controlPath, c.port)

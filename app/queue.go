@@ -130,7 +130,7 @@ func (q *queue) checkDuplicateAndRun(job *config.JobConfig) {
 		PerformBackup(job)
 		ent.finish = time.Now()
 	} else {
-		log.WithField("host", host).Info("duplicate job")
+		log.WithField("job", host).Info("duplicate job")
 	}
 }
 
