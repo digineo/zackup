@@ -103,10 +103,8 @@ func (q *queue) newWorker() {
 }
 
 func (q *queue) Enqueue(job *config.JobConfig) {
-	q.RLock() // we could be resizing
 	q.jobGroup.Add(1)
 	q.jobs <- job
-	q.RUnlock()
 }
 
 func (q *queue) checkDuplicateAndRun(job *config.JobConfig) {
