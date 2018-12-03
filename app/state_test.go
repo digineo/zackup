@@ -36,11 +36,13 @@ func TestMetricsStatus(t *testing.T) {
 			{t1, nil, &t2}, // tErr > t0
 			{t1, &t1, &t2}, // tErr > t0 && tErr > tOK
 			{t1, &t2, &t3}, // tErr > tOK && tOK > t0 && tOK > tStart
+			{t2, &t1, &t2}, // tErr >= t0 && tErr > tOK
 		},
 		StatusSuccess: {
 			{t1, &t2, nil}, // tOK > t0
 			{t1, &t2, &t1}, // tOK > t0 && tOK > tErr
 			{t1, &t3, &t2}, // tOK > tErr && tErr > t0 && tErr > tStart
+			{t2, &t2, &t1}, // tOK >= t0 && tOK > tErr
 		},
 	} {
 		for i, tc := range tt {

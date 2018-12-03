@@ -73,10 +73,10 @@ func (m *metrics) Status() MetricStatus {
 	if (tOK == nil || t0.After(*tOK)) && (tErr == nil || t0.After(*tErr)) {
 		return StatusRunning
 	}
-	if tOK != nil && (tErr == nil || tOK.After(*tErr)) && tOK.After(t0) {
+	if tOK != nil && (tErr == nil || tOK.After(*tErr)) && !tOK.Before(t0) {
 		return StatusSuccess
 	}
-	if tErr != nil && (tOK == nil || tErr.After(*tOK)) && tErr.After(t0) {
+	if tErr != nil && (tOK == nil || tErr.After(*tOK)) && !tErr.Before(t0) {
 		return StatusFailed
 	}
 	return StatusUnknown
