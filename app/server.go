@@ -198,7 +198,7 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 </head>
 
 <body>
-	<main class="container">
+	<main class="container-fluid">
 		<h1>zackup overview</h1>
 		<table class="table table-sm">
 			<caption class="small">
