@@ -21,7 +21,7 @@ type sshMaster struct {
 	user string
 	port uint16
 
-	connectTimeout int    // number of seconds
+	connectTimeout uint   // number of seconds
 	controlPath    string // SSH multiplexing socket
 	mountPath      string // join(MountBase, host)
 
@@ -37,9 +37,8 @@ func newSSHMaster(host string, cfg *config.SSHConfig) *sshMaster {
 		user: cfg.User,
 		port: cfg.Port,
 
-		connectTimeout: cfg.Timeout,
-		controlPath:    filepath.Join(MountBase, ".zackup_%h_%C"),
-		mountPath:      filepath.Join(MountBase, host),
+		controlPath: filepath.Join(MountBase, ".zackup_%h_%C"),
+		mountPath:   filepath.Join(MountBase, host),
 
 		mu: &sync.Mutex{},
 		wg: &sync.WaitGroup{},
@@ -49,6 +48,9 @@ func newSSHMaster(host string, cfg *config.SSHConfig) *sshMaster {
 	}
 	if master.user == "" {
 		master.user = "root"
+	}
+	if to := cfg.Timeout; to != nil && *to >= 0 {
+		master.connectTimeout = *to
 	}
 	return master
 }

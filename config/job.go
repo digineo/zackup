@@ -15,7 +15,7 @@ type JobConfig struct {
 type SSHConfig struct {
 	User    string `yaml:"user"`    // defaults to "root"
 	Port    uint16 `yaml:"port"`    // defaults to 22
-	Timeout int    `yaml:"timeout"` // number of seconds, defaults to 15
+	Timeout *uint  `yaml:"timeout"` // number of seconds, defaults to 15
 }
 
 // Host returns the hostname for this job.
@@ -29,11 +29,15 @@ func (j *JobConfig) mergeGlobals(globals *JobConfig) {
 			dup := *globals.SSH
 			j.SSH = &dup
 		} else {
-			if tmp := globals.SSH.User; tmp != "" {
-				j.SSH.User = tmp
+			if j.SSH.User == "" {
+				j.SSH.User = globals.SSH.User
 			}
-			if tmp := globals.SSH.Port; tmp != 0 {
-				j.SSH.Port = tmp
+			if j.SSH.Port == 0 {
+				j.SSH.Port = globals.SSH.Port
+			}
+			if j.SSH.Timeout == nil && globals.SSH.Timeout != nil {
+				dup := *globals.SSH.Timeout
+				j.SSH.Timeout = &dup
 			}
 		}
 	}
