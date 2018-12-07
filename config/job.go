@@ -1,8 +1,16 @@
 package config
 
+import (
+	"time"
+
+	"github.com/sirupsen/logrus"
+)
+
 // JobConfig holds config settings for a single backup job.
 type JobConfig struct {
-	host string `yaml:"-"`
+	host    string
+	nextRun time.Time `yaml:"-"` // readonly, will be modified by the scheduler
+	active  bool      `yaml:"-"` // readonly, will be modified by the scheduler
 
 	SSH   *SSHConfig   `yaml:"ssh"`
 	RSync *RsyncConfig `yaml:"rsync"`
@@ -22,6 +30,27 @@ type SSHConfig struct {
 func (j *JobConfig) Host() string {
 	return j.host
 }
+
+// Start marks the job as active.
+func (j *JobConfig) Start() { j.active = true }
+
+// Finish marks a job as done.
+func (j *JobConfig) Finish() { j.active = false }
+
+// Schedule updates the scheduled time for the next run.
+func (j *JobConfig) Schedule(next time.Time) {
+	logrus.WithFields(logrus.Fields{
+		"job":  j.host,
+		"date": next.Truncate(time.Second).Format(time.RFC3339),
+	}).Info("job rescheduled")
+	j.nextRun = next
+}
+
+// IsActive returns whether the job is currently running
+func (j *JobConfig) IsActive() bool { return j.active }
+
+// NextRun returns the next scheduled run time.
+func (j *JobConfig) NextRun() time.Time { return j.nextRun }
 
 func (j *JobConfig) mergeGlobals(globals *JobConfig) {
 	if globals.SSH != nil {

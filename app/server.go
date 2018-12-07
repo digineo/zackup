@@ -143,7 +143,7 @@ func tplFmtDuration(d interface{}) template.HTML {
 func tplStatusClass(m HostMetrics) string {
 	switch m.Status() {
 	case StatusFailed:
-		return "table-warning"
+		return "table-danger"
 	case StatusSuccess:
 		return "table-success"
 	case StatusRunning:

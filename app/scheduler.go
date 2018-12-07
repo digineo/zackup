@@ -27,6 +27,7 @@ type scheduler struct {
 	stop bool          // interrupts loop in run()
 	wg   sync.WaitGroup
 
+	sync.RWMutex
 }
 
 // NewScheduler returns a new scheduler instance. It reads the schedule
@@ -38,6 +39,7 @@ func NewScheduler(tree config.Tree, queue Queue) Scheduler {
 		queue:  queue,
 		logger: log.WithField("prefix", "scheduler"),
 	}
+
 	sch.wg.Add(1)
 	return sch
 }
@@ -45,7 +47,9 @@ func NewScheduler(tree config.Tree, queue Queue) Scheduler {
 func (sch *scheduler) Start() {
 	sch.quit = make(chan struct{})
 	sch.stop = false
-	t := time.NewTimer(sch.plan())
+
+	const interval = time.Minute
+	t := time.NewTimer(interval)
 
 	defer sch.wg.Done()
 
@@ -58,7 +62,7 @@ func (sch *scheduler) Start() {
 			sch.quit = nil
 			return
 		}
-		t.Reset(sch.plan())
+		t.Reset(interval)
 	}
 }
 
@@ -68,31 +72,36 @@ func (sch *scheduler) Stop() {
 	sch.wg.Wait()
 }
 
-func (sch *scheduler) plan() time.Duration {
-	now := time.Now().UTC()
-	next := sch.config.Service().NextSchedule(now)
-	diff := next.Sub(now).Truncate(time.Second)
-
-	if diff < time.Minute {
-		diff = time.Minute
-	}
-	sch.nextRun = now.Add(diff)
-
-	sch.logger.WithFields(logrus.Fields{
-		"sleep": int64(diff / time.Second),
-		"date":  sch.nextRun.Format(time.RFC3339),
-	}).Info("scheduled next backup cycle")
-
-	return diff
-}
-
 func (sch *scheduler) run() {
-	for _, name := range sch.config.Hosts() {
+	next := sch.config.Service().NextSchedule
+
+	sch.Lock()
+	defer sch.Unlock()
+
+	for _, host := range sch.config.Hosts() {
 		if sch.stop {
-			break
+			// abort early if Stop() was called
+			return
 		}
-		if job := sch.config.Host(name); job != nil {
-			sch.queue.Enqueue(job)
+
+		job := sch.config.Host(host)
+		if job == nil {
+			continue
 		}
+
+		now := time.Now()
+		if job.NextRun().IsZero() {
+			job.Schedule(next(now))
+		}
+
+		if job.IsActive() || job.NextRun().After(now) {
+			// do not touch active or planned jobs
+			continue
+		}
+
+		// this might block if backlog is full
+		job.Start()
+		sch.queue.Enqueue(job)
+		job.Schedule(next(time.Now()))
 	}
 }
