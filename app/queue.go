@@ -34,29 +34,11 @@ type Queue interface {
 
 type quitCh chan struct{}
 
-type lastSeenEntry struct {
-	start, finish time.Time
-}
-
-// recent reports whether ent is marked active (start > finish) or if
-// it recently finished (tRef - finish <= duplicateDetectionTime).
-func (ent *lastSeenEntry) recent(ref *time.Time) bool {
-	if ent.start.IsZero() {
-		return false
-	}
-
-	finPlus := ent.finish.Add(duplicateDetectionTime)
-	return ent.start.After(ent.finish) || ref.Before(finPlus) || ref.Equal(finPlus)
-}
-
 type queue struct {
 	workers     []quitCh
 	workerGroup sync.WaitGroup
 	jobs        chan *config.JobConfig
 	jobGroup    sync.WaitGroup
-
-	// for duplicate detection
-	lastSeen map[string]*lastSeenEntry
 
 	sync.RWMutex
 }
@@ -66,9 +48,8 @@ type queue struct {
 func NewQueue() Queue {
 	backlog := 16 // TODO: optimize or make configurable
 	q := queue{
-		workers:  make([]quitCh, 0, maxParallelity),
-		jobs:     make(chan *config.JobConfig, backlog),
-		lastSeen: make(map[string]*lastSeenEntry),
+		workers: make([]quitCh, 0, maxParallelity),
+		jobs:    make(chan *config.JobConfig, backlog),
 	}
 
 	q.workerGroup.Add(1)
@@ -92,7 +73,7 @@ func (q *queue) newWorker() {
 		for {
 			select {
 			case job := <-q.jobs:
-				q.checkDuplicateAndRun(job)
+				PerformBackup(job)
 				q.jobGroup.Done()
 			case <-quit:
 				break Loop
@@ -105,31 +86,6 @@ func (q *queue) newWorker() {
 func (q *queue) Enqueue(job *config.JobConfig) {
 	q.jobGroup.Add(1)
 	q.jobs <- job
-}
-
-func (q *queue) checkDuplicateAndRun(job *config.JobConfig) {
-	host := job.Host()
-	perform := false
-	now := time.Now()
-
-	q.Lock()
-	ent, ok := q.lastSeen[host]
-	if !ok {
-		ent = &lastSeenEntry{start: now}
-		q.lastSeen[host] = ent
-		perform = true
-	} else if !ent.recent(&now) {
-		ent.start = now
-		perform = true
-	}
-	q.Unlock()
-
-	if perform {
-		PerformBackup(job)
-		ent.finish = time.Now()
-	} else {
-		log.WithField("job", host).Info("duplicate job")
-	}
 }
 
 func (q *queue) Resize(newSize int) {
