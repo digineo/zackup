@@ -16,28 +16,17 @@ type Scheduler interface {
 
 	// Stop halts the scheduler. Running jobs are still finished, though.
 	Stop()
-
-	// State returns runtime information.
-	State() SchedulerState
-}
-
-// SchedulerState holds runtime information of a scheduler.
-type SchedulerState struct {
-	NextRun time.Time
-	Active  bool
 }
 
 type scheduler struct {
 	config config.Tree
 	queue  Queue
+	logger *logrus.Entry
 
 	quit chan struct{} // interrupts loop in Start()
 	stop bool          // interrupts loop in run()
 	wg   sync.WaitGroup
 
-	logger  *logrus.Entry
-	nextRun time.Time
-	active  bool
 }
 
 // NewScheduler returns a new scheduler instance. It reads the schedule
@@ -79,12 +68,6 @@ func (sch *scheduler) Stop() {
 	sch.wg.Wait()
 }
 
-func (sch *scheduler) State() (s SchedulerState) {
-	s.NextRun = sch.nextRun
-	s.Active = sch.active
-	return
-}
-
 func (sch *scheduler) plan() time.Duration {
 	now := time.Now().UTC()
 	next := sch.config.Service().NextSchedule(now)
@@ -104,7 +87,6 @@ func (sch *scheduler) plan() time.Duration {
 }
 
 func (sch *scheduler) run() {
-	sch.active = true
 	for _, name := range sch.config.Hosts() {
 		if sch.stop {
 			break
@@ -113,5 +95,4 @@ func (sch *scheduler) run() {
 			sch.queue.Enqueue(job)
 		}
 	}
-	sch.active = false
 }

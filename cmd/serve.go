@@ -28,7 +28,8 @@ var serveCmd = &cobra.Command{
 
 		sched := app.NewScheduler(tree, queue)
 		go sched.Start()
-		srv := app.NewHTTP(serveBind, servePort, sched)
+
+		srv := app.NewHTTP(serveBind, servePort)
 		go srv.Start()
 
 		ch := make(chan os.Signal)

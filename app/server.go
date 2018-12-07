@@ -26,18 +26,16 @@ type HTTP interface {
 }
 
 type server struct {
-	scheduler Scheduler     // we only need its State()
-	logger    *logrus.Entry // unified logging
+	logger *logrus.Entry // unified logging
 
 	*http.Server
 }
 
 // NewHTTP sets a new web server up, mainly for metrics, but also for
 // a quick overview. Use
-func NewHTTP(bind string, port uint16, s Scheduler) HTTP {
+func NewHTTP(bind string, port uint16) HTTP {
 	srv := &server{
-		scheduler: s,
-		logger:    log.WithField("prefix", "http"),
+		logger: log.WithField("prefix", "http"),
 
 		Server: &http.Server{
 			Addr:         fmt.Sprintf("%s:%d", bind, port),
@@ -70,13 +68,11 @@ func (srv *server) Stop() {
 
 func (srv *server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	data := struct {
-		Hosts     []HostMetrics
-		Time      time.Time
-		Scheduler SchedulerState
+		Hosts []HostMetrics
+		Time  time.Time
 	}{
-		Hosts:     state.export(),
-		Time:      time.Now().UTC(),
-		Scheduler: srv.scheduler.State(),
+		Hosts: state.export(),
+		Time:  time.Now().UTC(),
 	}
 	var buf bytes.Buffer
 
@@ -202,13 +198,6 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 		<h1>zackup overview</h1>
 		<table class="table table-sm">
 			<caption class="small">
-				<span class="float-right">
-				{{ if .Scheduler.Active }}
-					<strong class="text-success">active</strong> since {{ fmtTime .Scheduler.NextRun false }}
-				{{ else }}
-					next run scheduled at {{ fmtTime .Scheduler.NextRun false }}
-				{{ end }}
-				</span>
 				Date: {{ fmtTime .Time false }}
 			</caption>
 			<thead>
