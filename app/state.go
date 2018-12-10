@@ -34,6 +34,12 @@ func InitializeState(tree config.Tree) error {
 	svc := tree.Service()
 	RootDataset = svc.RootDataset
 	MountBase = svc.MountBase
+	if svc.RSyncPath != "" {
+		RSyncPath = svc.RSyncPath
+	}
+	if svc.SSHPath != "" {
+		SSHPath = svc.SSHPath
+	}
 
 	return state.load()
 }

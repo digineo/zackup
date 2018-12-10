@@ -159,7 +159,7 @@ func tplStatusIcon(m HostMetrics) string {
 	case StatusSuccess:
 		return "fas fa-check"
 	case StatusRunning:
-		return "far fa-spinner fa-pulse"
+		return "fas fa-spinner fa-pulse"
 	case StatusPrimed:
 		return "far fa-clock"
 	}

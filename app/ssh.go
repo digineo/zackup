@@ -81,7 +81,7 @@ func (c *sshMaster) connect() error {
 		"-l", c.user,
 		c.host,
 	)
-	cmd := exec.Command("ssh", args...)
+	cmd := exec.Command(SSHPath, args...)
 
 	log.WithFields(logrus.Fields{
 		"prefix": "ssh.master",
@@ -151,7 +151,7 @@ func (c *sshMaster) execute(script []string) error {
 		c.host,
 		"/bin/sh", "-esx",
 	)
-	cmd := exec.Command("ssh", args...)
+	cmd := exec.Command(SSHPath, args...)
 
 	l := log.WithFields(logrus.Fields{
 		"prefix": "ssh.execute",
@@ -220,7 +220,7 @@ func (c *sshMaster) rsync(r *config.RsyncConfig) error {
 	srcArg := fmt.Sprintf("%s@%s:", c.user, c.host)
 
 	args := r.BuildArgVector(sshArg, srcArg, c.mountPath)
-	cmd := exec.Command("rsync", args...)
+	cmd := exec.Command(RSyncPath, args...)
 
 	done, wg, err := captureOutput(l, cmd)
 	if err != nil {

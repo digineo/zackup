@@ -99,6 +99,11 @@ mount_base:   path      # working directory to mount host dataset into
 log_level:    enum      # one of DEBUG, INFO, WARN, ERROR, FATAL, PANIC (case insensitive)
 graylog:      addr      # if set, write logs to this GELF UDP endpoint
 
+# We require rsync and ssh commands to be in $PATH. Adjust these, if either
+# $PATH does not contain these, or your binaries are named differently.
+rsync_bin:    string
+ssh_bin:      string
+
 # daemon hold settings specific to the "zackup serve" command.
 daemon:
   # strftime format for scheduled backups
@@ -119,6 +124,8 @@ parallel:     5
 root_dataset: zpool/zackup
 mount_base:   /zpool/zackup
 log_level:    info
+rsync_bin:    rsync
+ssh_bin:      ssh
 daemon:
   schedule:   "04:00:00"
   jitter:     "40m" # → between 03:40:00 and 04:20:00

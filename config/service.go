@@ -16,6 +16,9 @@ type ServiceConfig struct {
 	MountBase   string `yaml:"mount_base"`
 	LogLevel    string `yaml:"log_level"`
 
+	RSyncPath string `yaml:"rsync_bin"`
+	SSHPath   string `yaml:"ssh_bin"`
+
 	Daemon struct {
 		Schedule schedule `yaml:"schedule"`
 		Jitter   duration `yaml:"jitter"`

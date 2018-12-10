@@ -15,4 +15,10 @@ var (
 	// A special directory (MountBase/.zackup) is used as working
 	// directory for temporary files, such as SSH ControlPath sockets.
 	MountBase = "/zpool/zackup"
+
+	// RSyncPath might need to be adjusted if it's not in $PATH.
+	RSyncPath = "rsync"
+
+	// SSHPath might need to be adjusted if it's not in $PATH.
+	SSHPath = "ssh"
 )
