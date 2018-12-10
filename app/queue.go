@@ -69,9 +69,7 @@ func (q *queue) newWorker() {
 		for {
 			select {
 			case job := <-q.jobs:
-				job.Start()
 				PerformBackup(job)
-				job.Finish()
 				q.jobGroup.Done()
 			case <-quit:
 				break Loop

@@ -4,7 +4,6 @@ import (
 	"sync"
 	"time"
 
-	"git.digineo.de/digineo/zackup/config"
 	"github.com/sirupsen/logrus"
 )
 
@@ -19,7 +18,6 @@ type Scheduler interface {
 }
 
 type scheduler struct {
-	config config.Tree
 	queue  Queue
 	logger *logrus.Entry
 
@@ -33,9 +31,8 @@ type scheduler struct {
 // NewScheduler returns a new scheduler instance. It reads the schedule
 // interval from the config.Tree and enqueue new backup jobs into queue.
 // The instance is not started yet, you need to call Start().
-func NewScheduler(tree config.Tree, queue Queue) Scheduler {
+func NewScheduler(queue Queue) Scheduler {
 	sch := &scheduler{
-		config: tree,
 		queue:  queue,
 		logger: log.WithField("prefix", "scheduler"),
 	}
@@ -45,13 +42,13 @@ func NewScheduler(tree config.Tree, queue Queue) Scheduler {
 }
 
 func (sch *scheduler) Start() {
+	defer sch.wg.Done()
+
 	sch.quit = make(chan struct{})
 	sch.stop = false
 
-	const interval = time.Minute
-	t := time.NewTimer(interval)
-
-	defer sch.wg.Done()
+	// first polling should happen fast(-ish)
+	t := time.NewTimer(10 * time.Second)
 
 	for {
 		select {
@@ -62,7 +59,8 @@ func (sch *scheduler) Start() {
 			sch.quit = nil
 			return
 		}
-		t.Reset(interval)
+		// successive polls may happen less frequently
+		t.Reset(time.Minute)
 	}
 }
 
@@ -73,44 +71,40 @@ func (sch *scheduler) Stop() {
 }
 
 func (sch *scheduler) run() {
-	next := sch.config.Service().NextSchedule
-
 	sch.Lock()
 	defer sch.Unlock()
 
-	for _, host := range sch.config.Hosts() {
+	for host, job := range state.hosts {
 		if sch.stop {
 			// abort early if Stop() was called
 			return
 		}
-
-		job := sch.config.Host(host)
 		if job == nil {
+			// safety-net
 			continue
 		}
 
 		now := time.Now()
-		if job.NextRun().IsZero() {
-			job.Schedule(next(now))
+		if job.ScheduledAt.IsZero() {
+			state.reschedule(host, now)
 		}
 
+		s := job.Status()
 		l := sch.logger.WithFields(logrus.Fields{
 			"job":          host,
-			"scheduled-at": job.NextRun().Format(time.RFC3339),
-			"active":       job.IsActive(),
+			"scheduled-at": job.ScheduledAt.Format(time.RFC3339),
+			"status":       s.String(),
 		})
-		if job.IsActive() || job.NextRun().After(now) {
+		if s == StatusRunning || job.ScheduledAt.After(now) {
 			l.Debug("ignore active or planned jobs")
-			// do not touch active or planned jobs
 			continue
 		}
 
 		// this might block if backlog is full
-		job.Start()
 		l.Info("enqueueing job")
-		sch.queue.Enqueue(job)
+		sch.queue.Enqueue(job.job)
 
 		l.Info("rescheduleing job")
-		job.Schedule(next(time.Now()))
+		state.reschedule(host, time.Now())
 	}
 }

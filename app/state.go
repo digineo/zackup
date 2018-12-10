@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"git.digineo.de/digineo/zackup/config"
 	"github.com/sirupsen/logrus"
 )
 
@@ -16,10 +17,38 @@ import (
 // from a disk cache and regularly written back.
 type State struct {
 	hosts map[string]*metrics
+	tree  config.Tree
 	mu    *sync.RWMutex
 }
 
+var state *State
+
+// InitializeState reads the performance metrics stored in the data
+func InitializeState(tree config.Tree) error {
+	state = &State{
+		hosts: make(map[string]*metrics),
+		tree:  tree,
+		mu:    &sync.RWMutex{},
+	}
+
+	svc := tree.Service()
+	RootDataset = svc.RootDataset
+	MountBase = svc.MountBase
+
+	return state.load()
+}
+
+// ExportState dumps the current performance metrics.
+func ExportState() []HostMetrics {
+	return state.export()
+}
+
 type metrics struct {
+	job         *config.JobConfig // configured via InitializeState()
+	ScheduledAt time.Time         // configured via reschedule()
+
+	// these are properties read from ZFS
+
 	StartedAt            time.Time
 	SucceededAt          *time.Time
 	SuccessDuration      time.Duration
@@ -34,57 +63,6 @@ type metrics struct {
 type HostMetrics struct {
 	Host string
 	metrics
-}
-
-// MetricStatus represents the status of a metric set.
-type MetricStatus int
-
-// All possible MetricStatus values.
-const (
-	StatusUnknown MetricStatus = iota
-	StatusPrimed
-	StatusSuccess
-	StatusFailed
-	StatusRunning
-)
-
-func (s MetricStatus) String() string {
-	switch s {
-	case StatusUnknown:
-		return "unknown"
-	case StatusPrimed:
-		return "primed"
-	case StatusSuccess:
-		return "success"
-	case StatusFailed:
-		return "failed"
-	case StatusRunning:
-		return "running"
-	}
-	return fmt.Sprintf("%%!MetricStatus(%d)", s)
-}
-
-func (m *metrics) Status() MetricStatus {
-	t0, tOK, tErr := m.StartedAt, m.SucceededAt, m.FailedAt
-
-	if t0.IsZero() {
-		return StatusPrimed
-	}
-	if (tOK == nil || t0.After(*tOK)) && (tErr == nil || t0.After(*tErr)) {
-		return StatusRunning
-	}
-	if tOK != nil && (tErr == nil || tOK.After(*tErr)) && !tOK.Before(t0) {
-		return StatusSuccess
-	}
-	if tErr != nil && (tOK == nil || tErr.After(*tOK)) && !tErr.Before(t0) {
-		return StatusFailed
-	}
-	return StatusUnknown
-}
-
-var state = &State{
-	hosts: make(map[string]*metrics),
-	mu:    &sync.RWMutex{},
 }
 
 func (s *State) start(host string) {
@@ -123,23 +101,29 @@ func (s *State) failure(host string) {
 	s.mu.Unlock()
 }
 
-// LoadState reads the performance metrics stored in the data
-func LoadState(hosts []string) error {
-	return state.load(hosts)
+func (s *State) reschedule(host string, t time.Time) {
+	s.mu.RLock()
+	if job, ok := s.hosts[host]; ok {
+		job.ScheduledAt = s.tree.Service().NextSchedule(t)
+	}
+	s.mu.RUnlock()
 }
 
-// ExportState dumps the current performance metrics.
-func ExportState() []HostMetrics {
-	return state.export()
-}
-
-func (s *State) load(hosts []string) error {
+func (s *State) load() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for _, host := range hosts {
+	now := time.Now()
+	next := s.tree.Service().NextSchedule
+
+	for _, host := range s.tree.Hosts() {
 		if _, ok := s.hosts[host]; !ok {
-			s.hosts[host] = &metrics{}
+			s.hosts[host] = &metrics{
+				ScheduledAt: next(now),
+			}
+		}
+		if job := s.tree.Host(host); job != nil {
+			s.hosts[host].job = job
 		}
 		if err := s.loadHost(host); err != nil {
 			return err
@@ -224,6 +208,35 @@ func (s *State) loadHost(host string) error {
 	return nil
 }
 
+func (s *State) export() (ex []HostMetrics) {
+	s.mu.RLock()
+	ex = make([]HostMetrics, 0, len(s.hosts))
+
+	for host, met := range s.hosts {
+		ex = append(ex, HostMetrics{
+			Host: host,
+			metrics: metrics{
+				ScheduledAt:          met.ScheduledAt,
+				StartedAt:            met.StartedAt,
+				SucceededAt:          met.SucceededAt,
+				SuccessDuration:      met.SuccessDuration,
+				FailedAt:             met.FailedAt,
+				FailureDuration:      met.FailureDuration,
+				SpaceUsedTotal:       met.SpaceUsedTotal,
+				SpaceUsedBySnapshots: met.SpaceUsedBySnapshots,
+				CompressionFactor:    met.CompressionFactor,
+			},
+		})
+	}
+
+	sort.Slice(ex, func(i, j int) bool {
+		return ex[i].Host < ex[j].Host
+	})
+
+	s.mu.RUnlock()
+	return
+}
+
 func storeStart(host string, t time.Time) error {
 	args := []string{
 		"set",
@@ -272,32 +285,4 @@ func storeResult(host string, success bool, t time.Time, dur time.Duration) erro
 		return err
 	}
 	return nil
-}
-
-func (s *State) export() (ex []HostMetrics) {
-	s.mu.RLock()
-	ex = make([]HostMetrics, 0, len(s.hosts))
-
-	for host, met := range s.hosts {
-		ex = append(ex, HostMetrics{
-			Host: host,
-			metrics: metrics{
-				StartedAt:            met.StartedAt,
-				SucceededAt:          met.SucceededAt,
-				SuccessDuration:      met.SuccessDuration,
-				FailedAt:             met.FailedAt,
-				FailureDuration:      met.FailureDuration,
-				SpaceUsedTotal:       met.SpaceUsedTotal,
-				SpaceUsedBySnapshots: met.SpaceUsedBySnapshots,
-				CompressionFactor:    met.CompressionFactor,
-			},
-		})
-	}
-
-	sort.Slice(ex, func(i, j int) bool {
-		return ex[i].Host < ex[j].Host
-	})
-
-	s.mu.RUnlock()
-	return
 }

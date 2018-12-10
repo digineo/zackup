@@ -191,60 +191,96 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 		integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
 	<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.5.0/css/all.css"
 		integrity="sha384-B4dIYHKNBt8Bc12p+WXckhzcICo0wtJAoU8YZTY5qE0Id1GSseTk6S+L3BlXeVIU" crossorigin="anonymous">
+	<script>
+		function toggleTimes() {
+			document.querySelectorAll("tbody time").forEach(el => {
+				if (!el.dataset.text) {
+					el.dataset.text = el.innerText
+				}
+				if (el.innerText === el.dataset.text) {
+					el.innerText = el.getAttribute("title")
+				} else {
+					el.innerText = el.dataset.text
+				}
+			})
+		}
+
+		document.addEventListener("DOMContentLoaded", () => {
+			const btn = document.querySelector("button.js-toggle-times")
+			if (btn) {
+				btn.addEventListener("click", ev => {
+					ev.preventDefault()
+					toggleTimes()
+				})
+			}
+		})
+	</script>
 </head>
 
 <body>
 	<main class="container-fluid">
 		<h1>zackup overview</h1>
-		<table class="table table-sm">
+		<table class="table table-sm table-hover table-striped">
 			<caption class="small">
+				<button class="btn btn-sm btn-outline-secondary js-toggle-times float-right" type="button">
+					Toggle times
+				</button>
 				Date: {{ fmtTime .Time false }}
 			</caption>
 			<thead>
 				<tr>
-					<th>Host</th>
-					<th>Status</th>
-					<th>last started</th>
-					<th>last succeeded</th>
-					<th>last failed</th>
-					<th>Space used (total)</th>
-					<th>Space used (by snapshots)</th>
-					<th>Compression factor</th>
+					<th rowspan="2">Host</th>
+					<th rowspan="2">Status</th>
+					<th rowspan="2">last started</th>
+					<th rowspan="2" colspan="2" class="text-center">last succeeded</th>
+					<th rowspan="2" colspan="2" class="text-center">last failed</th>
+					<th rowspan="2">scheduled for</th>
+					<th colspan="2">Space used</th>
+					<th rowspan="2" class="text-right">Compression factor</th>
+				</tr>
+				<tr>
+					<th class="text-right">Total</th>
+					<th class="text-right">by Snapshots</th>
 				</tr>
 			</thead>
 			<tbody>
 			{{ range .Hosts }}
-				<tr class="{{ statusClass . }}">
+				<tr>
 					<td><tt>{{ .Host }}</tt></td>
-					<td><i class="{{ statusIcon . }} fa-fw"></i>&nbsp;{{ .Status }}</td>
+					<td class="{{ statusClass . }}">
+						<i class="{{ statusIcon . }} fa-fw"></i>&nbsp;{{ .Status }}
+					</td>
 					{{ if .StartedAt.IsZero }}
 						<td>{{ na }}</td>
-						<td>{{ na }}</td>
-						<td>{{ na }}</td>
+						<td colspan="2">{{ na }}</td>
+						<td colspan="2">{{ na }}</td>
 						<td>{{ na }}</td>
 						<td>{{ na }}</td>
 						<td>{{ na }}</td>
 					{{ else }}
 						<td>{{ fmtTime .StartedAt true }}</td>
+						{{ if .SucceededAt }}
+							<td class="text-right">{{ fmtTime .SucceededAt true }}</td>
+							<td><span class="badge badge-secondary">{{ fmtDuration .SuccessDuration }}</span></td>
+						{{ else }}
+							<td colspan="2">{{ na }}</td>
+						{{ end }}
+						{{ if .FailedAt }}
+							<td class="text-right">{{ fmtTime .FailedAt true }}</td>
+							<td><span class="badge badge-secondary">{{ fmtDuration .FailureDuration }}</span></td>
+						{{ else }}
+							<td colspan="2">{{ na }}</td>
+						{{ end }}
 						<td>
-							{{ if .SucceededAt }}
-								{{ fmtTime .SucceededAt true }}
-								<span class="badge badge-secondary">{{ fmtDuration .SuccessDuration }}</span>
+							{{ if .ScheduledAt }}
+								{{ fmtTime .ScheduledAt true }}
 							{{ else }}
 								{{ na }}
 							{{ end }}
 						</td>
-						<td>
-							{{ if .FailedAt }}
-								{{ fmtTime .FailedAt true }}
-								<span class="badge badge-secondary">{{ fmtDuration .FailureDuration }}</span>
-							{{ else }}
-								{{ na }}
-							{{ end }}
-						</td>
-						<td>{{ humanBytes .SpaceUsedTotal }}</td>
-						<td>{{ humanBytes .SpaceUsedBySnapshots }}</td>
-						<td>{{ printf "%0.2f" .CompressionFactor }}</td>
+						<td class="text-right">{{ humanBytes .SpaceUsedTotal }}</td>
+						<td class="text-right">{{ humanBytes .SpaceUsedBySnapshots }}</td>
+						<td class="text-right">{{ printf "%0.2f" .CompressionFactor }}</td>
 					{{ end }}
 				</tr>
 			{{ end }}

@@ -83,11 +83,8 @@ func initConfig() {
 
 		queue.Resize(int(svc.Parallel))
 
-		app.RootDataset = svc.RootDataset
-		app.MountBase = svc.MountBase
-
-		if err := app.LoadState(hosts); err != nil {
-			l.WithError(err).Fatalf("cannot restore state from ZFS metadata")
+		if err := app.InitializeState(tree); err != nil {
+			l.WithError(err).Fatalf("state initialization failed")
 		}
 	}
 }

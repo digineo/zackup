@@ -26,7 +26,7 @@ var serveCmd = &cobra.Command{
 			"port": int(servePort),
 		}).Info("Start HTTP server")
 
-		sched := app.NewScheduler(tree, queue)
+		sched := app.NewScheduler(queue)
 		go sched.Start()
 
 		srv := app.NewHTTP(serveBind, servePort)
