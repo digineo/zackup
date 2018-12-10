@@ -3,7 +3,7 @@ package app
 import (
 	"bytes"
 	"fmt"
-	osexec "os/exec"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -29,17 +29,28 @@ func newDataset(host string) *dataset {
 // PerformBackup executes the backup job.
 func PerformBackup(job *config.JobConfig) {
 	host := job.Host()
+	l := log.WithField("job", host)
 	var err error
 
+	l.Info("creating dataset")
 	ds := newDataset(host)
 	if err = ds.create(); err != nil {
 		return
 	}
 
 	// requires dataset to exist
-	defer func() { state.finish(host, err) }()
+	defer func() {
+		if err == nil {
+			l.Info("backup succeeded")
+			state.success(host)
+			return
+		}
+		l.WithError(err).Error("backup failed")
+		state.failure(host)
+	}()
 	state.start(host)
 
+	l.Info("establishing SSH tunnel")
 	m := newSSHMaster(host, job.SSH)
 	if err = m.connect(); err != nil {
 		return
@@ -47,21 +58,25 @@ func PerformBackup(job *config.JobConfig) {
 	defer m.close()
 
 	if script := job.PreScript.Lines(); len(script) > 0 {
+		l.Info("executing pre-scripts")
 		if err = m.execute(script); err != nil {
 			return
 		}
 	}
 
+	l.Info("starting rsync")
 	if err = m.rsync(job.RSync); err != nil {
 		return
 	}
 
 	if script := job.PostScript.Lines(); len(script) > 0 {
+		l.Info("executing post-scripts")
 		if err = m.execute(script); err != nil {
 			return
 		}
 	}
 
+	l.Info("creating snapshot")
 	if err = ds.snapshot(); err != nil {
 		return
 	}
@@ -87,7 +102,7 @@ func (ds *dataset) snapshot() error {
 }
 
 func zfs(args ...string) error {
-	o, e, err := exec("zfs", args...)
+	o, e, err := execProgram("zfs", args...)
 
 	if err != nil {
 		f := appendStdlogs(logrus.Fields{
@@ -100,9 +115,8 @@ func zfs(args ...string) error {
 	return err
 }
 
-func exec(prog string, args ...string) (stdout, stderr *bytes.Buffer, err error) {
-	log.WithField("args", args).Tracef("executing %s", prog)
-	cmd := osexec.Command(prog, args...)
+func execProgram(prog string, args ...string) (stdout, stderr *bytes.Buffer, err error) {
+	cmd := exec.Command(prog, args...)
 
 	var o, e bytes.Buffer
 	cmd.Stdout = &o

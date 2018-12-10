@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	osexec "os/exec"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -25,7 +25,7 @@ type sshMaster struct {
 	controlPath    string // SSH multiplexing socket
 	mountPath      string // join(MountBase, host)
 
-	tunnel *osexec.Cmd     // foreground SSH process
+	tunnel *exec.Cmd       // foreground SSH process
 	wg     *sync.WaitGroup // for execute/rsync
 
 	mu *sync.Mutex // lock for start/stop
@@ -55,7 +55,7 @@ func newSSHMaster(host string, cfg *config.SSHConfig) *sshMaster {
 	return master
 }
 
-// ssh user@host -p port -o ControlMaster=yes -o ControlPath=/zackup/ssh/$uuid
+// ssh user@host -p port -o ControlMaster=yes -o ControlPath=...
 func (c *sshMaster) connect() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -81,13 +81,13 @@ func (c *sshMaster) connect() error {
 		"-l", c.user,
 		c.host,
 	)
-	cmd := osexec.Command("ssh", args...)
+	cmd := exec.Command("ssh", args...)
 
 	log.WithFields(logrus.Fields{
 		"prefix": "ssh.master",
 		"job":    c.host,
 		"args":   args,
-	}).Info("Starting SSH tunnel")
+	}).Debug("Starting SSH tunnel")
 
 	if err := cmd.Start(); err != nil {
 		return err
@@ -123,7 +123,7 @@ func (c *sshMaster) close() {
 	if err := c.tunnel.Wait(); err != nil {
 		// since we've sig{term,kill}'ed the process, we're not interested
 		// in the ExitError
-		if _, ok := err.(*osexec.ExitError); !ok {
+		if _, ok := err.(*exec.ExitError); !ok {
 			l.WithError(err).Warn("unexpected termination")
 		}
 	}
@@ -151,7 +151,7 @@ func (c *sshMaster) execute(script []string) error {
 		c.host,
 		"/bin/sh", "-esx",
 	)
-	cmd := osexec.Command("ssh", args...)
+	cmd := exec.Command("ssh", args...)
 
 	l := log.WithFields(logrus.Fields{
 		"prefix": "ssh.execute",
@@ -220,7 +220,7 @@ func (c *sshMaster) rsync(r *config.RsyncConfig) error {
 	srcArg := fmt.Sprintf("%s@%s:", c.user, c.host)
 
 	args := r.BuildArgVector(sshArg, srcArg, c.mountPath)
-	cmd := osexec.Command("rsync", args...)
+	cmd := exec.Command("rsync", args...)
 
 	done, wg, err := captureOutput(l, cmd)
 	if err != nil {
@@ -228,7 +228,6 @@ func (c *sshMaster) rsync(r *config.RsyncConfig) error {
 	}
 	defer done()
 
-	l.WithField("args", args).Info("Starting rsync")
 	if err := cmd.Start(); err != nil {
 		return err
 	}
@@ -240,14 +239,14 @@ func (c *sshMaster) rsync(r *config.RsyncConfig) error {
 	return nil
 }
 
-func captureOutput(log *logrus.Entry, cmd *osexec.Cmd) (func(), *sync.WaitGroup, error) {
+func captureOutput(log *logrus.Entry, cmd *exec.Cmd) (func(), *sync.WaitGroup, error) {
 	wg := &sync.WaitGroup{}
 
 	capture := func(name string, r io.Reader) {
 		caplog := log.WithField("stream", name)
 		s := bufio.NewScanner(r)
 		for s.Scan() {
-			caplog.Debug(s.Text())
+			caplog.Trace(s.Text())
 		}
 		if err := s.Err(); err != nil {
 			caplog.WithError(err).Error("unexpected end of stream")

@@ -37,6 +37,9 @@ func (j *JobConfig) Start() { j.active = true }
 // Finish marks a job as done.
 func (j *JobConfig) Finish() { j.active = false }
 
+// IsActive returns whether the job is currently running
+func (j *JobConfig) IsActive() bool { return j.active }
+
 // Schedule updates the scheduled time for the next run.
 func (j *JobConfig) Schedule(next time.Time) {
 	logrus.WithFields(logrus.Fields{
@@ -45,9 +48,6 @@ func (j *JobConfig) Schedule(next time.Time) {
 	}).Info("job rescheduled")
 	j.nextRun = next
 }
-
-// IsActive returns whether the job is currently running
-func (j *JobConfig) IsActive() bool { return j.active }
 
 // NextRun returns the next scheduled run time.
 func (j *JobConfig) NextRun() time.Time { return j.nextRun }

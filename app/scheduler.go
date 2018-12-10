@@ -94,14 +94,23 @@ func (sch *scheduler) run() {
 			job.Schedule(next(now))
 		}
 
+		l := sch.logger.WithFields(logrus.Fields{
+			"job":          host,
+			"scheduled-at": job.NextRun().Format(time.RFC3339),
+			"active":       job.IsActive(),
+		})
 		if job.IsActive() || job.NextRun().After(now) {
+			l.Debug("ignore active or planned jobs")
 			// do not touch active or planned jobs
 			continue
 		}
 
 		// this might block if backlog is full
 		job.Start()
+		l.Info("enqueueing job")
 		sch.queue.Enqueue(job)
+
+		l.Info("rescheduleing job")
 		job.Schedule(next(time.Now()))
 	}
 }

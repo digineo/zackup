@@ -15,8 +15,8 @@ import (
 // State holds metrics, mainly for Prometheus. Upon start it is restored
 // from a disk cache and regularly written back.
 type State struct {
-	results map[string]*metrics
-	mu      *sync.RWMutex
+	hosts map[string]*metrics
+	mu    *sync.RWMutex
 }
 
 type metrics struct {
@@ -83,17 +83,17 @@ func (m *metrics) Status() MetricStatus {
 }
 
 var state = &State{
-	results: make(map[string]*metrics),
-	mu:      &sync.RWMutex{},
+	hosts: make(map[string]*metrics),
+	mu:    &sync.RWMutex{},
 }
 
 func (s *State) start(host string) {
 	t := time.Now().UTC()
 	s.mu.Lock()
-	if m, ok := s.results[host]; ok {
+	if m, ok := s.hosts[host]; ok {
 		m.StartedAt = t
 	} else {
-		s.results[host] = &metrics{
+		s.hosts[host] = &metrics{
 			StartedAt: t,
 		}
 	}
@@ -101,18 +101,10 @@ func (s *State) start(host string) {
 	s.mu.Unlock()
 }
 
-func (s *State) finish(host string, err error) {
-	if err == nil {
-		s.success(host)
-	} else {
-		s.failure(host)
-	}
-}
-
 func (s *State) success(host string) {
 	t := time.Now().UTC()
 	s.mu.Lock()
-	if m, ok := s.results[host]; ok {
+	if m, ok := s.hosts[host]; ok {
 		m.SucceededAt = &t
 		m.SuccessDuration = t.Sub(m.StartedAt).Truncate(time.Millisecond)
 		storeResult(host, true, t, m.SuccessDuration)
@@ -123,7 +115,7 @@ func (s *State) success(host string) {
 func (s *State) failure(host string) {
 	t := time.Now().UTC()
 	s.mu.Lock()
-	if m, ok := s.results[host]; ok {
+	if m, ok := s.hosts[host]; ok {
 		m.FailedAt = &t
 		m.FailureDuration = t.Sub(m.StartedAt).Truncate(time.Millisecond)
 		storeResult(host, false, t, m.FailureDuration)
@@ -146,8 +138,8 @@ func (s *State) load(hosts []string) error {
 	defer s.mu.Unlock()
 
 	for _, host := range hosts {
-		if _, ok := s.results[host]; !ok {
-			s.results[host] = &metrics{}
+		if _, ok := s.hosts[host]; !ok {
+			s.hosts[host] = &metrics{}
 		}
 		if err := s.loadHost(host); err != nil {
 			return err
@@ -168,7 +160,7 @@ func (s *State) loadHost(host string) error {
 		dataset,
 	}
 
-	o, e, err := exec("zfs", args...)
+	o, e, err := execProgram("zfs", args...)
 	if err != nil {
 		// dataset does not exit, ignore
 		f := appendStdlogs(logrus.Fields{
@@ -209,10 +201,10 @@ func (s *State) loadHost(host string) error {
 		}
 
 		host := strings.TrimPrefix(cols[0], rds)
-		met, ok := s.results[host]
+		met, ok := s.hosts[host]
 		if !ok {
 			met = &metrics{}
-			s.results[host] = met
+			s.hosts[host] = met
 		}
 
 		if err := decoder(met, cols[2]); err != nil {
@@ -223,11 +215,10 @@ func (s *State) loadHost(host string) error {
 	}
 
 	if err := scan.Err(); err != nil {
-		f := appendStdlogs(logrus.Fields{
+		log.WithFields(appendStdlogs(logrus.Fields{
 			logrus.ErrorKey: err,
 			"command":       append([]string{"zfs"}, args...),
-		}, o, e)
-		log.WithFields(f).Error("failed to load state")
+		}, o, e)).Error("failed to load state")
 		return err
 	}
 	return nil
@@ -240,15 +231,17 @@ func storeStart(host string, t time.Time) error {
 		filepath.Join(RootDataset, host),
 	}
 
-	log.WithField("command", append([]string{"zfs"}, args...)).
+	f := logrus.Fields{
+		"command": "zfs",
+		"args":    args,
+	}
+	log.WithFields(f).
 		Debugf("set properties for host %q", host)
-	o, e, err := exec("zfs", args...)
+	o, e, err := execProgram("zfs", args...)
 	if err != nil {
-		f := appendStdlogs(logrus.Fields{
-			logrus.ErrorKey: err,
-			"command":       append([]string{"zfs"}, args...),
-		}, o, e)
-		log.WithFields(f).Error("failed to store start state")
+		f[logrus.ErrorKey] = err
+		log.WithFields(appendStdlogs(f, o, e)).
+			Error("failed to store start state")
 		return err
 	}
 	return nil
@@ -266,16 +259,16 @@ func storeResult(host string, success bool, t time.Time, dur time.Duration) erro
 		fmt.Sprintf("%s=%d", propDur, int64(dur/time.Millisecond)),
 		filepath.Join(RootDataset, host),
 	}
-	log.WithField("command", append([]string{"zfs"}, args...)).
-		Debugf("set properties for host %q", host)
-
-	o, e, err := exec("zfs", args...)
+	f := logrus.Fields{
+		"command": "zfs",
+		"args":    args,
+	}
+	log.WithFields(f).Debugf("set properties for host %q", host)
+	o, e, err := execProgram("zfs", args...)
 	if err != nil {
-		f := appendStdlogs(logrus.Fields{
-			logrus.ErrorKey: err,
-			"command":       append([]string{"zfs"}, args...),
-		}, o, e)
-		log.WithFields(f).Error("failed to store result state")
+		f[logrus.ErrorKey] = err
+		log.WithFields(appendStdlogs(f, o, e)).
+			Error("failed to store result state")
 		return err
 	}
 	return nil
@@ -283,9 +276,9 @@ func storeResult(host string, success bool, t time.Time, dur time.Duration) erro
 
 func (s *State) export() (ex []HostMetrics) {
 	s.mu.RLock()
-	ex = make([]HostMetrics, 0, len(s.results))
+	ex = make([]HostMetrics, 0, len(s.hosts))
 
-	for host, met := range s.results {
+	for host, met := range s.hosts {
 		ex = append(ex, HostMetrics{
 			Host: host,
 			metrics: metrics{

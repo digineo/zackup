@@ -58,10 +58,6 @@ func NewQueue() Queue {
 	return &q
 }
 
-func (q *queue) Wait() {
-	q.jobGroup.Wait()
-}
-
 func (q *queue) newWorker() {
 	q.Lock()
 	quit := make(quitCh)
@@ -88,6 +84,10 @@ func (q *queue) newWorker() {
 func (q *queue) Enqueue(job *config.JobConfig) {
 	q.jobGroup.Add(1)
 	q.jobs <- job
+}
+
+func (q *queue) Wait() {
+	q.jobGroup.Wait()
 }
 
 func (q *queue) Resize(newSize int) {
