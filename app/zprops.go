@@ -8,9 +8,11 @@ import (
 
 // system properties
 const (
-	propUsed            = "used"            // space used by dataset and its children (snapshots)
-	propUsedBySnapshots = "usedbysnapshots" // space used by snapshots
-	propCompressRatio   = "compressratio"   // compression achieved for the "used" space
+	propUsedBySnapshots      = "usedbysnapshots"      // space used by snapshots
+	propUsedByDataset        = "usedbydataset"        // space used by dataset itself
+	propUsedByChildren       = "usedbychildren"       // space used by children of dataset
+	propUsedByRefReservation = "usedbyrefreservation" // reserved space
+	propCompressRatio        = "compressratio"        // compression achieved for the "used" space
 )
 
 // user properties (need a namespace)
@@ -25,7 +27,11 @@ const (
 
 var zackupProps = strings.Join([]string{
 	// system properties
-	propUsed, propUsedBySnapshots, propCompressRatio,
+	propUsedBySnapshots,
+	propUsedByDataset,
+	propUsedByChildren,
+	propUsedByRefReservation,
+	propCompressRatio,
 
 	// user properties
 	propZackupLastStart,
@@ -34,18 +40,34 @@ var zackupProps = strings.Join([]string{
 }, ",")
 
 var propDecoder = map[string]func(*metrics, string) error{
-	propUsed: func(m *metrics, value string) error {
-		uval, err := strconv.ParseUint(value, 10, 64)
-		if err == nil {
-			m.SpaceUsedTotal = uval
-		}
-		return err
-	},
-
 	propUsedBySnapshots: func(m *metrics, value string) error {
 		uval, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			m.SpaceUsedBySnapshots = uval
+		}
+		return err
+	},
+
+	propUsedByDataset: func(m *metrics, value string) error {
+		uval, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			m.SpaceUsedByDataset = uval
+		}
+		return err
+	},
+
+	propUsedByChildren: func(m *metrics, value string) error {
+		uval, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			m.SpaceUsedByChildren = uval
+		}
+		return err
+	},
+
+	propUsedByRefReservation: func(m *metrics, value string) error {
+		uval, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			m.SpaceUsedByRefReservation = uval
 		}
 		return err
 	},

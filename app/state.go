@@ -55,14 +55,20 @@ type metrics struct {
 
 	// these are properties read from ZFS
 
-	StartedAt            time.Time
-	SucceededAt          *time.Time
-	SuccessDuration      time.Duration
-	FailedAt             *time.Time
-	FailureDuration      time.Duration
-	SpaceUsedTotal       uint64
-	SpaceUsedBySnapshots uint64
-	CompressionFactor    float64
+	StartedAt                 time.Time
+	SucceededAt               *time.Time
+	SuccessDuration           time.Duration
+	FailedAt                  *time.Time
+	FailureDuration           time.Duration
+	SpaceUsedBySnapshots      uint64
+	SpaceUsedByDataset        uint64
+	SpaceUsedByChildren       uint64
+	SpaceUsedByRefReservation uint64
+	CompressionFactor         float64
+}
+
+func (m *metrics) SpaceUsedTotal() uint64 {
+	return m.SpaceUsedBySnapshots + m.SpaceUsedByDataset + m.SpaceUsedByChildren + m.SpaceUsedByRefReservation
 }
 
 // HostMetrics represents a snapshot of the current metrics for a host.
@@ -222,15 +228,17 @@ func (s *State) export() (ex []HostMetrics) {
 		ex = append(ex, HostMetrics{
 			Host: host,
 			metrics: metrics{
-				ScheduledAt:          met.ScheduledAt,
-				StartedAt:            met.StartedAt,
-				SucceededAt:          met.SucceededAt,
-				SuccessDuration:      met.SuccessDuration,
-				FailedAt:             met.FailedAt,
-				FailureDuration:      met.FailureDuration,
-				SpaceUsedTotal:       met.SpaceUsedTotal,
-				SpaceUsedBySnapshots: met.SpaceUsedBySnapshots,
-				CompressionFactor:    met.CompressionFactor,
+				ScheduledAt:               met.ScheduledAt,
+				StartedAt:                 met.StartedAt,
+				SucceededAt:               met.SucceededAt,
+				SuccessDuration:           met.SuccessDuration,
+				FailedAt:                  met.FailedAt,
+				FailureDuration:           met.FailureDuration,
+				SpaceUsedBySnapshots:      met.SpaceUsedBySnapshots,
+				SpaceUsedByDataset:        met.SpaceUsedByDataset,
+				SpaceUsedByChildren:       met.SpaceUsedByChildren,
+				SpaceUsedByRefReservation: met.SpaceUsedByRefReservation,
+				CompressionFactor:         met.CompressionFactor,
 			},
 		})
 	}

@@ -83,8 +83,12 @@ var statusCmd = &cobra.Command{
 				fmt.Printf("%s  failed at         %s (took %s)\n", ws, t, d)
 			}
 
-			fmt.Printf("%s  space used        %s\n", ws, humanize.Bytes(host.SpaceUsedTotal))
-			fmt.Printf("%s  used by snapshots %s\n", ws, humanize.Bytes(host.SpaceUsedBySnapshots))
+			fmt.Printf("%s  space used        %s (%s snapshots, %s dataset, %s children, %s refreservation)\n", ws,
+				humanize.Bytes(host.SpaceUsedTotal()),
+				humanize.Bytes(host.SpaceUsedBySnapshots),
+				humanize.Bytes(host.SpaceUsedByDataset),
+				humanize.Bytes(host.SpaceUsedByChildren),
+				humanize.Bytes(host.SpaceUsedByRefReservation))
 			fmt.Printf("%s  compression       %0.2fx\n", ws, host.CompressionFactor)
 		}
 	},

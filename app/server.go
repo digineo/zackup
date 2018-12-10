@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"html/template"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -174,13 +175,33 @@ func tplHumanBytes(val uint64) template.HTML {
 	return template.HTML(humanize.Bytes(val))
 }
 
+func tplUsageDetails(m HostMetrics) string {
+	var buf bytes.Buffer
+	buf.WriteString("dataset: ")
+	buf.WriteString(humanize.Bytes(m.SpaceUsedByDataset))
+	buf.WriteString(", snapshots: ")
+	buf.WriteString(humanize.Bytes(m.SpaceUsedBySnapshots))
+	buf.WriteString(", children: ")
+	buf.WriteString(humanize.Bytes(m.SpaceUsedByChildren))
+	buf.WriteString(", reserved: ")
+	buf.WriteString(humanize.Bytes(m.SpaceUsedByRefReservation))
+	return buf.String()
+}
+
+func tplPercentUsage(m HostMetrics, val uint64) float64 {
+	r := 100 * float64(val) / float64(m.SpaceUsedTotal())
+	return math.Floor(r*100) / 100
+}
+
 var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
-	"fmtTime":     tplFmtTime,
-	"fmtDuration": tplFmtDuration,
-	"statusClass": tplStatusClass,
-	"statusIcon":  tplStatusIcon,
-	"na":          tplUnavailable,
-	"humanBytes":  tplHumanBytes,
+	"fmtTime":      tplFmtTime,
+	"fmtDuration":  tplFmtDuration,
+	"statusClass":  tplStatusClass,
+	"statusIcon":   tplStatusIcon,
+	"na":           tplUnavailable,
+	"humanBytes":   tplHumanBytes,
+	"usageDetails": tplUsageDetails,
+	"percentUsage": tplPercentUsage,
 }).Parse(`<!doctype html>
 <html>
 <head>
@@ -215,6 +236,12 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 			}
 		})
 	</script>
+	<style>
+	.progress {
+		height: 3px;
+		width: 150px;
+	}
+	</style>
 </head>
 
 <body>
@@ -229,18 +256,14 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 			</caption>
 			<thead>
 				<tr>
-					<th rowspan="2">Host</th>
-					<th rowspan="2">Status</th>
-					<th rowspan="2">last started</th>
-					<th rowspan="2" colspan="2" class="text-center">last succeeded</th>
-					<th rowspan="2" colspan="2" class="text-center">last failed</th>
-					<th rowspan="2">scheduled for</th>
-					<th colspan="2">Space used</th>
-					<th rowspan="2" class="text-right">Compression factor</th>
-				</tr>
-				<tr>
-					<th class="text-right">Total</th>
-					<th class="text-right">by Snapshots</th>
+					<th>Host</th>
+					<th>Status</th>
+					<th>last started</th>
+					<th colspan="2" class="text-center">last succeeded</th>
+					<th colspan="2" class="text-center">last failed</th>
+					<th>scheduled for</th>
+					<th>Space used</th>
+					<th class="text-right">Compression factor</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -252,11 +275,11 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 					</td>
 					{{ if .StartedAt.IsZero }}
 						<td>{{ na }}</td>
-						<td colspan="2">{{ na }}</td>
-						<td colspan="2">{{ na }}</td>
+						<td class="text-center" colspan="2">{{ na }}</td>
+						<td class="text-center" colspan="2">{{ na }}</td>
 						<td>{{ na }}</td>
 						<td>{{ na }}</td>
-						<td>{{ na }}</td>
+						<td class="text-right">{{ na }}</td>
 					{{ else }}
 						<td>{{ fmtTime .StartedAt true }}</td>
 						{{ if .SucceededAt }}
@@ -278,8 +301,15 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 								{{ na }}
 							{{ end }}
 						</td>
-						<td class="text-right">{{ humanBytes .SpaceUsedTotal }}</td>
-						<td class="text-right">{{ humanBytes .SpaceUsedBySnapshots }}</td>
+						<td title="{{ usageDetails . }}">
+							<div class="progress">
+								<div class="progress-bar bg-success" style="width:{{ percentUsage . .SpaceUsedByDataset }}%"></div>
+								<div class="progress-bar bg-warning" style="width:{{ percentUsage . .SpaceUsedBySnapshots }}%"></div>
+								<div class="progress-bar bg-info"    style="width:{{ percentUsage . .SpaceUsedByChildren }}%"></div>
+								<div class="progress-bar bg-danger"  style="width:{{ percentUsage . .SpaceUsedByRefReservation }}%"></div>
+							</div>
+							<small>Total: {{ humanBytes .SpaceUsedTotal }}</small>
+						</td>
 						<td class="text-right">{{ printf "%0.2f" .CompressionFactor }}</td>
 					{{ end }}
 				</tr>
