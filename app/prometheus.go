@@ -6,58 +6,122 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// PrometheusExporter is a Prometheus metrics endpoint.
-type PrometheusExporter struct{}
+// promExport models an exported field
+type promExport struct {
+	name, help string
+	typ        prometheus.ValueType
+	value      func(m *HostMetrics, t *time.Time) float64
+
+	// desc is dynamically build upon first use in Desc().
+	desc *prometheus.Desc
+}
+
+// promExporter exports Prometheus metrics.
+type promExporter []*promExport
 
 func init() {
-	prom := &PrometheusExporter{}
+	prom := &promExporter{
+		&promExport{
+			name: "last_success",
+			help: "duration since last success in seconds",
+			typ:  prometheus.CounterValue,
+			value: func(m *HostMetrics, t *time.Time) float64 {
+				since := float64(-1)
+				if m.SucceededAt != nil {
+					since = float64(t.Sub(*m.SucceededAt) / time.Second)
+				}
+				return since
+			},
+		},
+		&promExport{
+			name: "last_duration",
+			help: "duration of last successful run in seconds",
+			typ:  prometheus.GaugeValue,
+			value: func(m *HostMetrics, t *time.Time) float64 {
+				dur := float64(-1)
+				if m.SucceededAt != nil {
+					dur = float64(m.SuccessDuration) / float64(time.Second)
+				}
+				return dur
+			},
+		},
+		&promExport{
+			name: "space_used",
+			help: "total space used for backups in bytes",
+			typ:  prometheus.GaugeValue,
+			value: func(m *HostMetrics, t *time.Time) float64 {
+				return float64(m.SpaceUsedTotal())
+			},
+		},
+		&promExport{
+			name: "space_used_by_snapshots",
+			help: "space used by snapshots in bytes",
+			typ:  prometheus.GaugeValue,
+			value: func(m *HostMetrics, t *time.Time) float64 {
+				return float64(m.SpaceUsedBySnapshots)
+			},
+		},
+		&promExport{
+			name: "space_used_by_dataset",
+			help: "space used by dataset in bytes",
+			typ:  prometheus.GaugeValue,
+			value: func(m *HostMetrics, t *time.Time) float64 {
+				return float64(m.SpaceUsedByDataset)
+			},
+		},
+		&promExport{
+			name: "space_used_by_children",
+			help: "space used by children in bytes",
+			typ:  prometheus.GaugeValue,
+			value: func(m *HostMetrics, t *time.Time) float64 {
+				return float64(m.SpaceUsedByChildren)
+			},
+		},
+		&promExport{
+			name: "space_used_by_reserved",
+			help: "space reserved in bytes",
+			typ:  prometheus.GaugeValue,
+			value: func(m *HostMetrics, t *time.Time) float64 {
+				return float64(m.SpaceUsedByRefReservation)
+			},
+		},
+		&promExport{
+			name: "compression",
+			help: "compression ratio",
+			typ:  prometheus.GaugeValue,
+			value: func(m *HostMetrics, t *time.Time) float64 {
+				return m.CompressionFactor
+			},
+		},
+	}
 	prometheus.MustRegister(prom)
 }
 
-var (
-	hostLabels        = []string{"host"}
-	descLastSuccess   = prometheus.NewDesc("zackup_last_success", "duration since last success in seconds", hostLabels, nil)
-	descLastDuration  = prometheus.NewDesc("zackup_last_duration", "duration of last successful run in seconds", hostLabels, nil)
-	descSpaceTotal    = prometheus.NewDesc("zackup_space_used", "total space used for backups in bytes", hostLabels, nil)
-	descSpaceSnaps    = prometheus.NewDesc("zackup_space_used_by_snapshots", "space used by snapshots in bytes", hostLabels, nil)
-	descSpaceDataset  = prometheus.NewDesc("zackup_space_used_by_dataset", "space used by dataset in bytes", hostLabels, nil)
-	descSpaceChildren = prometheus.NewDesc("zackup_space_used_by_children", "space used by children in bytes", hostLabels, nil)
-	descSpaceReserved = prometheus.NewDesc("zackup_space_used_by_reserved", "space reserved in bytes", hostLabels, nil)
-	descCompression   = prometheus.NewDesc("zackup_compression", "compression ratio", hostLabels, nil)
-)
+var hostLabels = []string{"host"}
+
+func (f *promExport) Desc() *prometheus.Desc {
+	if f.desc == nil {
+		name := prometheus.BuildFQName("zackup", "", f.name)
+		f.desc = prometheus.NewDesc(name, f.help, hostLabels, nil)
+	}
+	return f.desc
+}
 
 // Describe implements the prometheus.Collector interface
-func (e PrometheusExporter) Describe(c chan<- *prometheus.Desc) {
-	c <- descLastSuccess
-	c <- descLastDuration
-	c <- descSpaceTotal
-	c <- descSpaceSnaps
-	c <- descSpaceDataset
-	c <- descSpaceChildren
-	c <- descSpaceReserved
-	c <- descCompression
+func (e promExporter) Describe(c chan<- *prometheus.Desc) {
+	for _, f := range e {
+		c <- f.Desc()
+	}
 }
 
 // Collect implements the prometheus.Collector interface
-func (e PrometheusExporter) Collect(c chan<- prometheus.Metric) {
+func (e promExporter) Collect(c chan<- prometheus.Metric) {
 	now := time.Now()
 
 	for _, m := range state.export() {
-		labels := []string{m.Host}
-
-		since, dur := float64(-1), float64(-1)
-		if m.SucceededAt != nil {
-			since = float64(now.Sub(*m.SucceededAt) / time.Second)
-			dur = float64(m.SuccessDuration) / float64(time.Second)
+		for _, f := range e {
+			val := f.value(&m, &now)
+			c <- prometheus.MustNewConstMetric(f.desc, f.typ, val, m.Host)
 		}
-
-		c <- prometheus.MustNewConstMetric(descLastSuccess, prometheus.CounterValue, since, labels...)
-		c <- prometheus.MustNewConstMetric(descLastDuration, prometheus.GaugeValue, dur, labels...)
-		c <- prometheus.MustNewConstMetric(descSpaceTotal, prometheus.GaugeValue, float64(m.SpaceUsedTotal()), labels...)
-		c <- prometheus.MustNewConstMetric(descSpaceSnaps, prometheus.GaugeValue, float64(m.SpaceUsedBySnapshots), labels...)
-		c <- prometheus.MustNewConstMetric(descSpaceDataset, prometheus.GaugeValue, float64(m.SpaceUsedByDataset), labels...)
-		c <- prometheus.MustNewConstMetric(descSpaceChildren, prometheus.GaugeValue, float64(m.SpaceUsedByChildren), labels...)
-		c <- prometheus.MustNewConstMetric(descSpaceReserved, prometheus.GaugeValue, float64(m.SpaceUsedByRefReservation), labels...)
-		c <- prometheus.MustNewConstMetric(descCompression, prometheus.GaugeValue, m.CompressionFactor, labels...)
 	}
 }
