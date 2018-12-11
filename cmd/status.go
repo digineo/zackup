@@ -52,8 +52,17 @@ var statusCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		exported := app.ExportState()
 
+		wantAll := len(args) == 0
+		wantOnly := make(map[string]bool)
+		for _, host := range args {
+			wantOnly[host] = true
+		}
+
 		longest := 0
 		for _, host := range exported {
+			if !wantAll && !wantOnly[host.Host] {
+				continue
+			}
 			if l := len(host.Host); l > longest {
 				longest = l
 			}
@@ -61,6 +70,10 @@ var statusCmd = &cobra.Command{
 		ws := strings.Repeat(" ", longest)
 
 		for _, host := range exported {
+			if !wantAll && !wantOnly[host.Host] {
+				continue
+			}
+
 			s := host.Status()
 			fmt.Printf("%-[1]*s  status            %s\n", longest, host.Host, colorize(s))
 
