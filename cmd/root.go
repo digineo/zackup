@@ -3,10 +3,10 @@ package cmd
 import (
 	"os"
 
-	"git.digineo.de/digineo/zackup/app"
-	"git.digineo.de/digineo/zackup/config"
-	"git.digineo.de/digineo/zackup/graylog"
 	"github.com/digineo/goldflags"
+	"github.com/digineo/zackup/app"
+	"github.com/digineo/zackup/config"
+	"github.com/digineo/zackup/graylog"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )

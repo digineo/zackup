@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"git.digineo.de/digineo/zackup/cmd"
+	"github.com/digineo/zackup/cmd"
 )
 
 func main() {

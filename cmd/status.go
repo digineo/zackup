@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"git.digineo.de/digineo/zackup/app"
+	"github.com/digineo/zackup/app"
 	humanize "github.com/dustin/go-humanize"
 	"github.com/k0kubun/pp"
 	"github.com/spf13/cobra"

@@ -5,7 +5,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"git.digineo.de/digineo/zackup/app"
+	"github.com/digineo/zackup/app"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )

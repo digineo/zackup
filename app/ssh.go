@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"git.digineo.de/digineo/zackup/config"
+	"github.com/digineo/zackup/config"
 	"github.com/sirupsen/logrus"
 )
 

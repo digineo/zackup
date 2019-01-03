@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"git.digineo.de/digineo/zackup/config"
+	"github.com/digineo/zackup/config"
 )
 
 // maxParallelity defines the max. queue size. At a certain value, we're

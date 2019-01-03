@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"git.digineo.de/digineo/zackup/graylog"
+	"github.com/digineo/zackup/graylog"
 	humanize "github.com/dustin/go-humanize"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"git.digineo.de/digineo/zackup/config"
+	"github.com/digineo/zackup/config"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
