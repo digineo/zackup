@@ -1,4 +1,7 @@
+<p align="center"><img src="zackup.png" alt="zackup" style="max-width:100%;"></p>
+
 # zackup - Backup to ZFS
+
 
 Small utility to replace BackupPC.
 
