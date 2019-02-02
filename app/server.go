@@ -40,7 +40,7 @@ func NewHTTP(listen string) HTTP {
 
 		Server: &http.Server{
 			Addr:         listen,
-			ReadTimeout:  3 * time.Second,
+			ReadTimeout:  90 * time.Second,
 			WriteTimeout: 1 * time.Second,
 		},
 	}
