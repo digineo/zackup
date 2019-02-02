@@ -10,7 +10,7 @@ import (
 type promExport struct {
 	name, help string
 	typ        prometheus.ValueType
-	value      func(m *HostMetrics, t *time.Time) float64
+	value      func(m *HostMetrics) float64
 
 	// desc is dynamically build upon first use in Desc().
 	desc *prometheus.Desc
@@ -23,12 +23,12 @@ func init() {
 	prom := &promExporter{
 		&promExport{
 			name: "last_success",
-			help: "duration since last success in seconds",
+			help: "timestamp of last success",
 			typ:  prometheus.CounterValue,
-			value: func(m *HostMetrics, t *time.Time) float64 {
+			value: func(m *HostMetrics) float64 {
 				since := float64(-1)
 				if m.SucceededAt != nil {
-					since = float64(t.Sub(*m.SucceededAt) / time.Second)
+					since = float64(m.SucceededAt.Unix())
 				}
 				return since
 			},
@@ -37,10 +37,10 @@ func init() {
 			name: "last_duration",
 			help: "duration of last successful run in seconds",
 			typ:  prometheus.GaugeValue,
-			value: func(m *HostMetrics, t *time.Time) float64 {
+			value: func(m *HostMetrics) float64 {
 				dur := float64(-1)
 				if m.SucceededAt != nil {
-					dur = float64(m.SuccessDuration) / float64(time.Second)
+					dur = float64(m.SuccessDuration / time.Second)
 				}
 				return dur
 			},
@@ -49,7 +49,7 @@ func init() {
 			name: "space_used",
 			help: "total space used for backups in bytes",
 			typ:  prometheus.GaugeValue,
-			value: func(m *HostMetrics, t *time.Time) float64 {
+			value: func(m *HostMetrics) float64 {
 				return float64(m.SpaceUsedTotal())
 			},
 		},
@@ -57,7 +57,7 @@ func init() {
 			name: "space_used_by_snapshots",
 			help: "space used by snapshots in bytes",
 			typ:  prometheus.GaugeValue,
-			value: func(m *HostMetrics, t *time.Time) float64 {
+			value: func(m *HostMetrics) float64 {
 				return float64(m.SpaceUsedBySnapshots)
 			},
 		},
@@ -65,7 +65,7 @@ func init() {
 			name: "space_used_by_dataset",
 			help: "space used by dataset in bytes",
 			typ:  prometheus.GaugeValue,
-			value: func(m *HostMetrics, t *time.Time) float64 {
+			value: func(m *HostMetrics) float64 {
 				return float64(m.SpaceUsedByDataset)
 			},
 		},
@@ -73,7 +73,7 @@ func init() {
 			name: "space_used_by_children",
 			help: "space used by children in bytes",
 			typ:  prometheus.GaugeValue,
-			value: func(m *HostMetrics, t *time.Time) float64 {
+			value: func(m *HostMetrics) float64 {
 				return float64(m.SpaceUsedByChildren)
 			},
 		},
@@ -81,7 +81,7 @@ func init() {
 			name: "space_used_by_reserved",
 			help: "space reserved in bytes",
 			typ:  prometheus.GaugeValue,
-			value: func(m *HostMetrics, t *time.Time) float64 {
+			value: func(m *HostMetrics) float64 {
 				return float64(m.SpaceUsedByRefReservation)
 			},
 		},
@@ -89,7 +89,7 @@ func init() {
 			name: "compression",
 			help: "compression ratio",
 			typ:  prometheus.GaugeValue,
-			value: func(m *HostMetrics, t *time.Time) float64 {
+			value: func(m *HostMetrics) float64 {
 				return m.CompressionFactor
 			},
 		},
@@ -116,11 +116,9 @@ func (e promExporter) Describe(c chan<- *prometheus.Desc) {
 
 // Collect implements the prometheus.Collector interface
 func (e promExporter) Collect(c chan<- prometheus.Metric) {
-	now := time.Now()
-
 	for _, m := range state.export() {
 		for _, f := range e {
-			val := f.value(&m, &now)
+			val := f.value(&m)
 			c <- prometheus.MustNewConstMetric(f.desc, f.typ, val, m.Host)
 		}
 	}
