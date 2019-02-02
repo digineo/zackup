@@ -34,12 +34,12 @@ type server struct {
 
 // NewHTTP sets a new web server up, mainly for metrics, but also for
 // a quick overview. Use
-func NewHTTP(bind string, port uint16) HTTP {
+func NewHTTP(listen string) HTTP {
 	srv := &server{
 		logger: log.WithField("prefix", "http"),
 
 		Server: &http.Server{
-			Addr:         fmt.Sprintf("%s:%d", bind, port),
+			Addr:         listen,
 			ReadTimeout:  3 * time.Second,
 			WriteTimeout: 1 * time.Second,
 		},
