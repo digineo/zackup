@@ -3,6 +3,7 @@ package app
 import (
 	"time"
 
+	"github.com/digineo/goldflags"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -99,6 +100,15 @@ func init() {
 
 var hostLabels = []string{"host"}
 
+var version = prometheus.NewDesc(
+	"zackup_version",
+	"version information",
+	nil,
+	map[string]string{
+		"version": goldflags.VersionString(),
+	},
+)
+
 func (f *promExport) Desc() *prometheus.Desc {
 	if f.desc == nil {
 		name := prometheus.BuildFQName("zackup", "", f.name)
@@ -112,6 +122,7 @@ func (e promExporter) Describe(c chan<- *prometheus.Desc) {
 	for _, f := range e {
 		c <- f.Desc()
 	}
+	c <- version
 }
 
 // Collect implements the prometheus.Collector interface
@@ -122,4 +133,5 @@ func (e promExporter) Collect(c chan<- prometheus.Metric) {
 			c <- prometheus.MustNewConstMetric(f.desc, f.typ, val, m.Host)
 		}
 	}
+	c <- prometheus.MustNewConstMetric(version, prometheus.UntypedValue, 1)
 }
