@@ -11,3 +11,7 @@ zackup.freebsd: $(DEPS)
 
 zackup.linux: $(DEPS)
 	GOOS=linux GOARCH=amd64 go build -ldflags "$(GOLDFLAGS)" -o $@
+
+.PHONY: clean
+clean:
+	rm -rf zackup.freebsd zackup.linux
