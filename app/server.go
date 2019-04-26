@@ -214,7 +214,9 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 		integrity="sha256-7rF6RaSKyh16288E3hVdzQtHyzatA2MQRGu0cf6pqqM=" crossorigin="anonymous">
 	<script>
 		function toggleTimes() {
-			document.querySelectorAll("tbody time").forEach(el => {
+			const times = document.querySelectorAll("tbody time")
+			for (let i = 0, len = times.length; i < len; ++i) {
+				const el = times[i]
 				if (!el.dataset.text) {
 					el.dataset.text = el.innerText
 				}
@@ -223,7 +225,7 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 				} else {
 					el.innerText = el.dataset.text
 				}
-			})
+			}
 		}
 
 		document.addEventListener("DOMContentLoaded", () => {
@@ -253,6 +255,9 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 					Toggle times
 				</button>
 				Date: {{ fmtTime .Time false }}
+				<br>
+				<a href="https://github.com/digineo/zackup">Digineo Zackup</a>
+				&bull; <a href="https://github.com/digineo/zackup/issues">Issues</a>
 			</caption>
 			<thead>
 				<tr>
@@ -286,13 +291,13 @@ var tpl = template.Must(template.New("index").Funcs(template.FuncMap{
 							<td class="text-right">{{ fmtTime .SucceededAt true }}</td>
 							<td><span class="badge badge-secondary">{{ fmtDuration .SuccessDuration }}</span></td>
 						{{ else }}
-							<td colspan="2">{{ na }}</td>
+							<td colspan="2" class="text-center">{{ na }}</td>
 						{{ end }}
 						{{ if .FailedAt }}
 							<td class="text-right">{{ fmtTime .FailedAt true }}</td>
 							<td><span class="badge badge-secondary">{{ fmtDuration .FailureDuration }}</span></td>
 						{{ else }}
-							<td colspan="2">{{ na }}</td>
+							<td colspan="2" class="text-center">{{ na }}</td>
 						{{ end }}
 						<td>
 							{{ if .ScheduledAt }}
