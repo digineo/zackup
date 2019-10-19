@@ -57,7 +57,7 @@ We assume these files exist in `ROOT_DIR`:
 
     ROOT_DIR/
     +-- config.yml                    service configuration
-    +-- defaults.yml                  global defaults for host configs
+    +-- globals.yml                   global defaults for host configs
     +-- hosts/
         +-- $host/config.yml          host config (variant A)
         +-- $host.yml                 host config (variant B)
@@ -164,8 +164,8 @@ ssh:
   timeout:  int       # timeout for establishing connection
 
 rsync:
-  included: []string  # rsync pattern for included files/directories
-  excluded: []string  # rsync pattern for excluded files/directories
+  include:  []string  # rsync pattern for included files/directories
+  exclude:  []string  # rsync pattern for excluded files/directories
   args:     []string  # other rsync arguments
 
   # included, excluded and args will be merged with the global config
@@ -196,7 +196,7 @@ ssh:
   port: 22
   timeout: 10
 rsync:
-  included:
+  include:
   - /etc
   - /home
   - /opt
@@ -205,7 +205,7 @@ rsync:
   - /usr/local/etc
   - /var/spool/cron
   - /var/www
-  excluded:
+  exclude:
   - "tmp"
   - "*.log"
   - "*.log.*"
