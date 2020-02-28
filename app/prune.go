@@ -24,10 +24,12 @@ type snapshot struct {
 	Time time.Time // Parsed timestamp from the dataset name
 }
 
+// FIXME PruneSnapshots does not actually perform any destructive operations
+// on your datasets at this time.
 func PruneSnapshots(job *config.JobConfig) {
 	var host = job.Host()
 
-	// Set defaults if config is not set
+	// Defaults: if config is not set
 	if job.Retention == nil {
 		job.Retention = &config.RetentionConfig{
 			Daily:   100000,
@@ -37,7 +39,7 @@ func PruneSnapshots(job *config.JobConfig) {
 		}
 	}
 
-	// This catches any gaps in the config
+	// Defaults: catch any gaps in the config
 	if job.Retention.Daily == 0 {
 		job.Retention.Daily = 100000
 	}
@@ -51,30 +53,20 @@ func PruneSnapshots(job *config.JobConfig) {
 		job.Retention.Yearly = 100000
 	}
 
-	// FIXME probably should iterate over a list instead here
-	for _, snapshot := range listKeepers(host, "daily", job.Retention.Daily) {
-		log.WithFields(logrus.Fields{
-			"snapshot": snapshot,
-			"period":   "daily",
-		}).Debug("keeping snapshot")
+	var keep_counts = map[string]uint{
+		"daily":   job.Retention.Daily,
+		"weekly":  job.Retention.Weekly,
+		"monthly": job.Retention.Monthly,
+		"yearly":  job.Retention.Yearly,
 	}
-	for _, snapshot := range listKeepers(host, "weekly", job.Retention.Weekly) {
-		log.WithFields(logrus.Fields{
-			"snapshot": snapshot,
-			"period":   "weekly",
-		}).Debug("keeping snapshot")
-	}
-	for _, snapshot := range listKeepers(host, "monthly", job.Retention.Monthly) {
-		log.WithFields(logrus.Fields{
-			"snapshot": snapshot,
-			"period":   "monthly",
-		}).Debug("keeping snapshot")
-	}
-	for _, snapshot := range listKeepers(host, "yearly", job.Retention.Yearly) {
-		log.WithFields(logrus.Fields{
-			"snapshot": snapshot,
-			"period":   "yearly",
-		}).Debug("keeping snapshot")
+
+	for bucket, keep_count := range keep_counts {
+		for _, snapshot := range listKeepers(host, bucket, keep_count) {
+			log.WithFields(logrus.Fields{
+				"snapshot": snapshot,
+				"bucket":   bucket,
+			}).Debug("keeping snapshot")
+		}
 	}
 
 	// TODO subtract keepers from the list of snapshots and rm -rf them
@@ -82,7 +74,7 @@ func PruneSnapshots(job *config.JobConfig) {
 
 // listKeepers returns a list of snapshot that are not subject to deletion
 // for a given host, pattern, and keep_count.
-func listKeepers(host string, pattern string, keep_count uint) []snapshot {
+func listKeepers(host string, bucket string, keep_count uint) []snapshot {
 	var keepers []snapshot
 	var last string
 
@@ -90,12 +82,12 @@ func listKeepers(host string, pattern string, keep_count uint) []snapshot {
 		var period string
 
 		// Weekly is special because golang doesn't have support for "week number in year"
-		// in Time.Format strings.
-		if pattern == "weekly" {
+		// as Time.Format string pattern.
+		if bucket == "weekly" {
 			year, week := snapshot.Time.Local().ISOWeek()
 			period = fmt.Sprintf("%d-%d", year, week)
 		} else {
-			period = snapshot.Time.Local().Format(patterns[pattern])
+			period = snapshot.Time.Local().Format(patterns[bucket])
 		}
 
 		if period != last {
