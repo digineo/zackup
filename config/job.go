@@ -4,8 +4,9 @@ package config
 type JobConfig struct {
 	host string
 
-	SSH   *SSHConfig   `yaml:"ssh"`
-	RSync *RsyncConfig `yaml:"rsync"`
+	SSH       *SSHConfig       `yaml:"ssh"`
+	RSync     *RsyncConfig     `yaml:"rsync"`
+	Retention *RetentionConfig `yaml:"retention"`
 
 	PreScript  Script `yaml:"pre_script"`  // from yaml file
 	PostScript Script `yaml:"post_script"` // from yaml file
@@ -16,6 +17,14 @@ type SSHConfig struct {
 	User    string `yaml:"user"`    // defaults to "root"
 	Port    uint16 `yaml:"port"`    // defaults to 22
 	Timeout *uint  `yaml:"timeout"` // number of seconds, defaults to 15
+}
+
+// RetentionConfig holds backup retention periods
+type RetentionConfig struct {
+	Daily   uint `yaml:"daily"`   // defaults to 1000000
+	Weekly  uint `yaml:"weekly"`  // defaults to 1000000
+	Monthly uint `yaml:"monthly"` // defaults to 1000000
+	Yearly  uint `yaml:"yearly"`  // defaults to 1000000
 }
 
 // Host returns the hostname for this job.
@@ -55,6 +64,26 @@ func (j *JobConfig) mergeGlobals(globals *JobConfig) {
 			}
 			if !j.RSync.OverrideGlobalArguments {
 				j.RSync.Arguments = append(j.RSync.Arguments, globals.RSync.Arguments...)
+			}
+		}
+	}
+
+	if globals.Retention != nil {
+		if j.Retention == nil {
+			dup := *globals.Retention
+			j.Retention = &dup
+		} else {
+			if j.Retention.Daily == 0 {
+				j.Retention.Daily = globals.Retention.Daily
+			}
+			if j.Retention.Weekly == 0 {
+				j.Retention.Weekly = globals.Retention.Weekly
+			}
+			if j.Retention.Monthly == 0 {
+				j.Retention.Monthly = globals.Retention.Monthly
+			}
+			if j.Retention.Yearly == 0 {
+				j.Retention.Yearly = globals.Retention.Yearly
 			}
 		}
 	}

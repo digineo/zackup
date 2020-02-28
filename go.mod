@@ -35,3 +35,5 @@ require (
 	gopkg.in/gemnasium/logrus-graylog-hook.v2 v2.0.7
 	gopkg.in/yaml.v2 v2.2.2
 )
+
+go 1.13
