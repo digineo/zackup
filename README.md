@@ -175,6 +175,13 @@ rsync:
   #override_global_excluded: true
   #override_global_args:     true
 
+# FIXME needs more details (
+retention:
+  daily:    int       # number of daily backups to keep
+  weekly:   int       # number of weekly backups to keep
+  monthly:  int       # number of monthly backups to keep
+  yearly:   int       # number of yearly backups to keep
+
 # Inline scripts executed on the remote host before and after rsyncing,
 # and before any `pre.*.sh` and/or `post.*.sh` scripts for this host.
 pre_script:  string
@@ -222,6 +229,11 @@ rsync:
   - "--hard-links"
   - "--block-size=2048"
   - "--recursive"
+retention:
+  daily: 14
+  weekly: 4
+  monthly: 6
+  yearly: 5
 ```
 
 # Copyright
