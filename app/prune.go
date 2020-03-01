@@ -32,40 +32,36 @@ func PruneSnapshots(job *config.JobConfig) {
 	// Defaults: if config is not set
 	if job.Retention == nil {
 		job.Retention = &config.RetentionConfig{
-			Daily:   100000,
-			Weekly:  100000,
-			Monthly: 100000,
-			Yearly:  100000,
+			Daily:   nil,
+			Weekly:  nil,
+			Monthly: nil,
+			Yearly:  nil,
 		}
 	}
 
-	// Defaults: catch any gaps in the config
-	if job.Retention.Daily == 0 {
-		job.Retention.Daily = 100000
-	}
-	if job.Retention.Weekly == 0 {
-		job.Retention.Weekly = 100000
-	}
-	if job.Retention.Monthly == 0 {
-		job.Retention.Monthly = 100000
-	}
-	if job.Retention.Yearly == 0 {
-		job.Retention.Yearly = 100000
-	}
-
-	var keep_counts = map[string]uint{
+	var policies = map[string]*int{
 		"daily":   job.Retention.Daily,
 		"weekly":  job.Retention.Weekly,
 		"monthly": job.Retention.Monthly,
 		"yearly":  job.Retention.Yearly,
 	}
 
-	for bucket, keep_count := range keep_counts {
-		for _, snapshot := range listKeepers(host, bucket, keep_count) {
-			log.WithFields(logrus.Fields{
+	snapshots := listSnapshots(host)
+
+	for bucket, retention := range policies {
+		for _, snapshot := range listKeepers(snapshots, bucket, retention) {
+			l := log.WithFields(logrus.Fields{
 				"snapshot": snapshot,
 				"bucket":   bucket,
-			}).Debug("keeping snapshot")
+			})
+
+			if retention == nil {
+				l = l.WithField("retention", "infinite")
+			} else {
+				l = l.WithField("retention", *retention)
+			}
+
+			l.Debug("keeping snapshot")
 		}
 	}
 
@@ -73,12 +69,12 @@ func PruneSnapshots(job *config.JobConfig) {
 }
 
 // listKeepers returns a list of snapshot that are not subject to deletion
-// for a given host, pattern, and keep_count.
-func listKeepers(host string, bucket string, keep_count uint) []snapshot {
+// for a given host, pattern, and retention.
+func listKeepers(snapshots []snapshot, bucket string, retention *int) []snapshot {
 	var keepers []snapshot
 	var last string
 
-	for _, snapshot := range listSnapshots(host) {
+	for _, snapshot := range snapshots {
 		var period string
 
 		// Weekly is special because golang doesn't have support for "week number in year"
@@ -94,7 +90,12 @@ func listKeepers(host string, bucket string, keep_count uint) []snapshot {
 			last = period
 			keepers = append(keepers, snapshot)
 
-			if uint(len(keepers)) == keep_count {
+			// nil will keep infinite snapshots
+			if retention == nil {
+				continue
+			}
+
+			if len(keepers) == *retention {
 				break
 			}
 		}
