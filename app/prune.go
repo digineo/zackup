@@ -112,6 +112,7 @@ func listSnapshots(host string) []snapshot {
 
 	args := []string{
 		"list",
+		"-r",         // recursive
 		"-H",         // no field headers in output
 		"-o", "name", // only name field
 		"-t", "snapshot", // type snapshot
