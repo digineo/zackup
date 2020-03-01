@@ -20,7 +20,7 @@ var (
 )
 
 type snapshot struct {
-	Ds   string    // Snapshot dataset name "backups/foo@RFC3339"
+	Name string    // Snapshot dataset name "backups/foo@RFC3339"
 	Time time.Time // Parsed timestamp from the dataset name
 }
 
@@ -138,7 +138,7 @@ func listSnapshots(host string) []snapshot {
 		}
 
 		snapshots = append(snapshots, snapshot{
-			Ds:   ss,
+			Name: ss,
 			Time: ts,
 		})
 	}
