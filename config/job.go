@@ -21,10 +21,10 @@ type SSHConfig struct {
 
 // RetentionConfig holds backup retention periods
 type RetentionConfig struct {
-	Daily   uint `yaml:"daily"`   // defaults to 1000000
-	Weekly  uint `yaml:"weekly"`  // defaults to 1000000
-	Monthly uint `yaml:"monthly"` // defaults to 1000000
-	Yearly  uint `yaml:"yearly"`  // defaults to 1000000
+	Daily   *int `yaml:"daily"`   // defaults to infinite
+	Weekly  *int `yaml:"weekly"`  // defaults to infinite
+	Monthly *int `yaml:"monthly"` // defaults to infinite
+	Yearly  *int `yaml:"yearly"`  // defaults to infinite
 }
 
 // Host returns the hostname for this job.
@@ -73,16 +73,16 @@ func (j *JobConfig) mergeGlobals(globals *JobConfig) {
 			dup := *globals.Retention
 			j.Retention = &dup
 		} else {
-			if j.Retention.Daily == 0 {
+			if j.Retention.Daily == nil {
 				j.Retention.Daily = globals.Retention.Daily
 			}
-			if j.Retention.Weekly == 0 {
+			if j.Retention.Weekly == nil {
 				j.Retention.Weekly = globals.Retention.Weekly
 			}
-			if j.Retention.Monthly == 0 {
+			if j.Retention.Monthly == nil {
 				j.Retention.Monthly = globals.Retention.Monthly
 			}
-			if j.Retention.Yearly == 0 {
+			if j.Retention.Yearly == nil {
 				j.Retention.Yearly = globals.Retention.Yearly
 			}
 		}
