@@ -153,6 +153,96 @@ If any of those scripts exits with a non-zero exit status, the backup is
 marked as failed.
 
 
+## Backup retention
+
+By default, zackup will not delete snapshots on its own.
+
+If you need/want to prune snapshots, you need to define a retention policy
+in `ROOT_DIR/globals.yml` and/or the host config file. A host-specific policy
+will *override* the global policy.
+
+The retention policy is defined as a list of sorted time intervals (from
+a predetermined keyword list). Each time interval counts from the beginning
+of the day of evaluation. They are paired with the maximal number of successive
+intervals, each containing the oldest snapshot in that interval.
+
+The predetermined keyword list contains four entries:
+
+1. "daily", spanning a range of 24 hours.
+2. "weekly", spanning a range of 7×24 = 168 hours.
+3. "monthly", spanning a range of 30×7×24 = 5040 hours.
+4. "yearly", spanning a range of 360×7×24 = 60480 hours.
+
+For the sake of simplicity, gaps/jumps in time (daylight time saving, leap
+days/seconds) are ignored.
+
+### Example
+
+To understand the definition, let's work with an example. Say our goal
+is to "keep 4 daily backups and 2 weekly backups". This would look like
+this in a configuration file:
+
+```yaml
+retention:
+  daily:  4
+  weekly: 2
+```
+
+You can identify the "daily" keywork paired with the number 4 and "weekly"
+paired with the number 2. You'll also notice that "monthly" and "yearly"
+are absent.
+
+When you execute `zackup prune`, the current timestamp is taken and truncated
+to the beginning of the day (= t<sub>curr</sub>). The time intervals are then
+applied the given number of times to that timestamp to define a list of
+"time buckets". In our example, this would result in this list:
+
+| bucket | begin                   | end                     |
+|:-------|:------------------------|:------------------------|
+| day 1  | t<sub>curr</sub> + 0h   | t<sub>curr</sub> + 24h  |
+| day 2  | t<sub>curr</sub> + 24h  | t<sub>curr</sub> + 48h  |
+| day 3  | t<sub>curr</sub> + 48h  | t<sub>curr</sub> + 72h  |
+| day 4  | t<sub>curr</sub> + 72h  | t<sub>curr</sub> + 96h  |
+| week 1 | t<sub>curr</sub> + 0h   | t<sub>curr</sub> + 168h |
+| week 2 | t<sub>curr</sub> + 168h | t<sub>curr</sub> + 336h |
+
+For each host, zackup will then go through the list of its snapshots,
+look at their age and sort it into one of the time buckets:
+
+- when **age**(`snapshot`) matches `bucket`:
+  - when `bucket` is empty:
+    - put `snapshot` into `bucket`
+  - else:
+    - `existing` := snapshot in `bucket`
+    - when **age**(`snapshot`) > **age**(`existing`):
+      - remove `existing` from `bucket`
+      - **mark**(`existing`)
+      - put `snapshot` into `bucket`
+    - else
+      - **mark**(`snapshot`)
+- when `snaphot` doesn't match any `bucket`:
+  - **mark**(`snapshot`)
+
+Finally, zackup will delete all marked snapshots.
+
+### Notes
+
+- **Be warned:** Deleting snapshots is a potentially dangerous operation.
+  Unless you do it the proper way and have multiple copies of your backups,
+  there's no way to recover pruned snapshots.
+- When deleting the snapshots (of a host), the very *latest* one is never
+  deleted. This is required for the snapshots to properly age through the
+  time ranges. In effect, the first time bucket of each interval may contain
+  two snapshots.
+- You can define `daily: 7` and `weekly: 1`, resulting in effectively the
+  same time range. This would not matter, as the weekly range will be satisfied
+  by the daily buckets.
+- The predetermined time interval keywords are internally represented as
+  proper time ranges. We might modify the configuration in a future release
+  to allow defining arbitrary interval definitions.
+- Using the start of the current day as anchor point
+
+
 ## Host config
 
 A host's config file is written in YAML and has this structure:
@@ -175,7 +265,7 @@ rsync:
   #override_global_excluded: true
   #override_global_args:     true
 
-# FIXME needs more details (
+# This defines the backup retention policy (see above).
 retention:
   daily:    int       # number of daily backups to keep
   weekly:   int       # number of weekly backups to keep

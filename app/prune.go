@@ -1,7 +1,7 @@
 package app
 
 import (
-	"fmt"
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -10,105 +10,36 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var (
-	patterns = map[string]string{
-		"daily":   "2006-01-02",
-		"weekly":  "", // See special case in keepers()
-		"monthly": "2006-01",
-		"yearly":  "2006",
-	}
-)
+var ErrNoRetentionPolicy = errors.New("no retention policy defined")
 
 type snapshot struct {
 	Name string    // Snapshot dataset name "backups/foo@RFC3339"
 	Time time.Time // Parsed timestamp from the dataset name
 }
 
-// FIXME PruneSnapshots does not actually perform any destructive operations
-// on your datasets at this time.
-func PruneSnapshots(job *config.JobConfig) {
-	var host = job.Host()
-
-	// Defaults: if config is not set
+// PruneSnapshots fits existing ZFS snapshots against the retention
+// policy configured in job, and prunes those not matching.
+func PruneSnapshots(job *config.JobConfig) error {
 	if job.Retention == nil {
-		job.Retention = &config.RetentionConfig{
-			Daily:   nil,
-			Weekly:  nil,
-			Monthly: nil,
-			Yearly:  nil,
-		}
+		return ErrNoRetentionPolicy
 	}
 
-	var policies = map[string]*int{
-		"daily":   job.Retention.Daily,
-		"weekly":  job.Retention.Weekly,
-		"monthly": job.Retention.Monthly,
-		"yearly":  job.Retention.Yearly,
-	}
+	var (
+		now         = time.Now()
+		policy      = newRetentionPolicy(now, job.Retention)
+		snapshots   = listSnapshots(job.Host())
+		_, toDelete = policy.apply(snapshots)
+	)
 
-	snapshots := listSnapshots(host)
+	// TODO rm -rf these snapshots
+	_ = toDelete
 
-	for bucket, retention := range policies {
-		for _, snapshot := range listKeepers(snapshots, bucket, retention) {
-			l := log.WithFields(logrus.Fields{
-				"snapshot": snapshot,
-				"bucket":   bucket,
-			})
-
-			if retention == nil {
-				l = l.WithField("retention", "infinite")
-			} else {
-				l = l.WithField("retention", *retention)
-			}
-
-			l.Debug("keeping snapshot")
-		}
-	}
-
-	// TODO subtract keepers from the list of snapshots and rm -rf them
-}
-
-// listKeepers returns a list of snapshot that are not subject to deletion
-// for a given host, pattern, and retention.
-func listKeepers(snapshots []snapshot, bucket string, retention *int) []snapshot {
-	var keepers []snapshot
-	var last string
-
-	for _, snapshot := range snapshots {
-		var period string
-
-		// Weekly is special because golang doesn't have support for "week number in year"
-		// as Time.Format string pattern.
-		if bucket == "weekly" {
-			year, week := snapshot.Time.Local().ISOWeek()
-			period = fmt.Sprintf("%d-%d", year, week)
-		} else {
-			period = snapshot.Time.Local().Format(patterns[bucket])
-		}
-
-		if period != last {
-			last = period
-			keepers = append(keepers, snapshot)
-
-			// nil will keep infinite snapshots
-			if retention == nil {
-				continue
-			}
-
-			if len(keepers) == *retention {
-				break
-			}
-		}
-	}
-
-	return keepers
+	return nil
 }
 
 // listSnapshots calls out to ZFS for a list of snapshots for a given host.
 // Returned data will be sorted by time, most recent first.
 func listSnapshots(host string) []snapshot {
-	var snapshots []snapshot
-
 	ds := newDataset(host)
 
 	args := []string{
@@ -119,7 +50,7 @@ func listSnapshots(host string) []snapshot {
 		"-t", "snapshot", // type snapshot
 		ds.Name,
 	}
-	o, e, err := execProgram("zfs", args...)
+	o, e, err := execZFS(args...)
 	if err != nil {
 		f := appendStdlogs(logrus.Fields{
 			logrus.ErrorKey: err,
@@ -129,16 +60,18 @@ func listSnapshots(host string) []snapshot {
 		log.WithFields(f).Errorf("executing zfs list failed")
 	}
 
-	for _, ss := range strings.Fields(o.String()) {
-		ts, err := time.Parse(time.RFC3339, strings.Split(ss, "@")[1])
+	out := o.String()
+	snapshots := make([]snapshot, 0, strings.Count(out, "\n"))
 
+	for _, f := range strings.Fields(out) {
+		ts, err := time.Parse(time.RFC3339, strings.Split(f, "@")[1])
 		if err != nil {
-			log.WithField("snapshot", ss).Error("Unable to parse timestamp from snapshot")
+			log.WithField("snapshot", f).Error("Unable to parse timestamp from snapshot")
 			continue
 		}
 
 		snapshots = append(snapshots, snapshot{
-			Name: ss,
+			Name: f,
 			Time: ts,
 		})
 	}
