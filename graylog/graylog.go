@@ -1,13 +1,11 @@
 package graylog
 
 import (
-	"os"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
-	"golang.org/x/crypto/ssh/terminal"
 	graylog "gopkg.in/gemnasium/logrus-graylog-hook.v2"
 )
 
@@ -16,8 +14,8 @@ var (
 	_ logrus.Hook = (*middleware)(nil) // type check
 )
 
-func init() {
-	if terminal.IsTerminal(int(os.Stdout.Fd())) {
+func init() { //nolint:gochecknoinits
+	if isTerminal() {
 		logrus.SetFormatter(&prefixed.TextFormatter{
 			FullTimestamp:   true,
 			TimestampFormat: time.StampMilli,
@@ -69,7 +67,7 @@ func (gl *middleware) Levels() []logrus.Level {
 		logrus.WarnLevel,
 		logrus.InfoLevel,
 		logrus.DebugLevel,
-		// TraceLevel,
+		logrus.TraceLevel,
 	}
 }
 
