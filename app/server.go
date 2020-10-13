@@ -33,7 +33,7 @@ type server struct {
 }
 
 // NewHTTP sets a new web server up, mainly for metrics, but also for
-// a quick overview. Use
+// a quick overview.
 func NewHTTP(listen string) HTTP {
 	srv := &server{
 		logger: log.WithField("prefix", "http"),

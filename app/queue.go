@@ -2,7 +2,6 @@ package app
 
 import (
 	"sync"
-	"time"
 
 	"github.com/digineo/zackup/config"
 )
@@ -12,9 +11,6 @@ import (
 // might actually be lower, for now this acts as a safety net.
 const maxParallelity = 255
 
-// To avoid running the same job either parallel or in rapid succession,
-// at least this time apart.
-const duplicateDetectionTime = 5 * time.Minute
 
 // Queue manages the parallel execution of jobs.
 type Queue interface {
