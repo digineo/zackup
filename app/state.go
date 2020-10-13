@@ -23,7 +23,7 @@ type State struct {
 
 var state *State
 
-// InitializeState reads the performance metrics stored in the data
+// InitializeState reads the performance metrics stored in the data.
 func InitializeState(tree config.Tree) error {
 	state = &State{
 		hosts: make(map[string]*metrics),
@@ -144,8 +144,8 @@ func (s *State) load() error {
 	return nil
 }
 
-// unsafe, caller must lock s.mu
-func (s *State) loadHost(host string) error {
+// unsafe, caller must lock s.mu mutex.
+func (s *State) loadHost(host string) error { //nolint:funlen
 	dataset := filepath.Join(RootDataset, host)
 	args := []string{
 		"get", "-H", "-p",
@@ -215,7 +215,7 @@ func (s *State) loadHost(host string) error {
 			logrus.ErrorKey: err,
 			"command":       append([]string{"zfs"}, args...),
 		}, o, e)).Error("failed to load state")
-		return err
+		return fmt.Errorf("failed to load state: %w", err)
 	}
 	return nil
 }
@@ -275,7 +275,7 @@ func storeStart(host string, t time.Time) error {
 }
 
 func storeResult(host string, success bool, t time.Time, dur time.Duration) error {
-	var propTime, propDur = propZackupLastFailureDate, propZackupLastFailureDuration
+	propTime, propDur := propZackupLastFailureDate, propZackupLastFailureDuration
 	if success {
 		propTime, propDur = propZackupLastSuccessDate, propZackupLastSuccessDuration
 	}

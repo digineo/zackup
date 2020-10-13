@@ -49,11 +49,13 @@ func newSSHMaster(host string, cfg *config.SSHConfig) *sshMaster {
 	if master.user == "" {
 		master.user = "root"
 	}
-	if to := cfg.Timeout; to != nil && *to >= 0 {
+	if to := cfg.Timeout; to != nil {
 		master.connectTimeout = *to
 	}
 	return master
 }
+
+var ErrAlreadyConnected = errors.New("ssh: tunnel already established")
 
 // ssh user@host -p port -o ControlMaster=yes -o ControlPath=...
 func (c *sshMaster) connect() error {
@@ -61,7 +63,7 @@ func (c *sshMaster) connect() error {
 	defer c.mu.Unlock()
 
 	if c.tunnel != nil {
-		return errors.New("already established")
+		return ErrAlreadyConnected
 	}
 
 	args := []string{
@@ -90,7 +92,7 @@ func (c *sshMaster) connect() error {
 	}).Debug("Starting SSH tunnel")
 
 	if err := cmd.Start(); err != nil {
-		return err
+		return fmt.Errorf("ssh: could not establish tunnel: %w", err)
 	}
 	c.tunnel = cmd
 	return nil
@@ -123,7 +125,8 @@ func (c *sshMaster) close() {
 	if err := c.tunnel.Wait(); err != nil {
 		// since we've sig{term,kill}'ed the process, we're not interested
 		// in the ExitError
-		if _, ok := err.(*exec.ExitError); !ok {
+		var xit exec.ExitError
+		if !errors.Is(err, &xit) {
 			l.WithError(err).Warn("unexpected termination")
 		}
 	}
@@ -131,8 +134,9 @@ func (c *sshMaster) close() {
 	c.tunnel = nil
 }
 
-// echo script | ssh -oControlPath=... host /bin/sh -esx
-func (c *sshMaster) execute(script []string) error {
+// execute a script on the remote host:
+//	echo script | ssh -oControlPath=... host /bin/sh -esx
+func (c *sshMaster) execute(script []string) error { //nolint:funlen
 	c.wg.Add(1)
 	defer c.wg.Done()
 
@@ -167,13 +171,13 @@ func (c *sshMaster) execute(script []string) error {
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		l.WithError(err).Error("could not get stdin")
-		return err
+		return fmt.Errorf("ssh: could not get stdin: %w", err)
 	}
 	defer stdin.Close()
 
 	if err = cmd.Start(); err != nil {
 		l.WithError(err).Error("failed to start process")
-		return err
+		return fmt.Errorf("ssh: failed to start process: %w", err)
 	}
 
 	in := bufio.NewWriter(stdin)
@@ -183,14 +187,14 @@ func (c *sshMaster) execute(script []string) error {
 				logrus.ErrorKey: err,
 				"current-line":  line,
 			}).Error("failed to send script")
-			return err
+			return fmt.Errorf("ssh: failed to send script: %w", err)
 		}
 		if err = in.Flush(); err != nil {
 			l.WithFields(logrus.Fields{
 				logrus.ErrorKey: err,
 				"current-line":  line,
 			}).Error("failed to execute script")
-			return err
+			return fmt.Errorf("ssh: failed to execute script: %w", err)
 		}
 	}
 	stdin.Close()
@@ -198,7 +202,7 @@ func (c *sshMaster) execute(script []string) error {
 
 	if err = cmd.Wait(); err != nil {
 		l.WithError(err).Error("unexpected termination")
-		return err
+		return fmt.Errorf("ssh: unexpected termination: %w", err)
 	}
 	return nil
 }
@@ -229,11 +233,11 @@ func (c *sshMaster) rsync(r *config.RsyncConfig) error {
 	defer done()
 
 	if err := cmd.Start(); err != nil {
-		return err
+		return err //nolint:wrapcheck
 	}
 	wg.Wait()
 	if err := cmd.Wait(); err != nil {
-		return err
+		return err //nolint:wrapcheck
 	}
 
 	return nil
@@ -256,13 +260,13 @@ func captureOutput(log *logrus.Entry, cmd *exec.Cmd) (func(), *sync.WaitGroup, e
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, err //nolint:wrapcheck
 	}
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		stdout.Close()
-		return nil, nil, err
+		return nil, nil, err //nolint:wrapcheck
 	}
 
 	wg.Add(2)

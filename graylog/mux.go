@@ -46,7 +46,7 @@ func (lw *statusCapture) Write(b []byte) (int, error) {
 	return lw.ResponseWriter.Write(b)
 }
 
-// Middleware implement mux middleware interface
+// Middleware implement mux middleware interface.
 func (m *muxLogger) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f := logrus.Fields{}

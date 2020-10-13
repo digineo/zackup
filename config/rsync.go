@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// RsyncConfig holds config value for the rsync binary
+// RsyncConfig holds config value for the rsync binary.
 type RsyncConfig struct {
 	Included  []string `yaml:"include"`
 	Excluded  []string `yaml:"exclude"`
@@ -36,7 +36,7 @@ func (r *RsyncConfig) BuildArgVector(ssh, src, dst string) []string {
 		// delete from dest (also if excluded), but at the end
 		"--delete", "--delete-excluded", "--delete-delay",
 		// the following tunes logging capabilities
-		"--itemize-changes", // TODO: make configurable
+		"--itemize-changes",
 	)
 
 	args = append(args, src, dst) // user@host:/ /zackup/host/
@@ -50,26 +50,24 @@ func (r *RsyncConfig) BuildArgVector(ssh, src, dst string) []string {
 // Most of the complexity is based in the fact that we do an rsync from
 // `host:/`, i.e. we start to copy from the root directory of the remote
 // host.
-//
-// TODO: could be simplified.
-func (r *RsyncConfig) filter() (list []string) {
-	// Original comments are marked as quote ("//>").
+func (r *RsyncConfig) filter() (list []string) { //nolint:funlen
+	// Original comments are marked as quote ("// >").
 	//
-	//> If the user wants to just include /home/craig, then we need to do create
-	//> include/exclude pairs at each level:
-	//>
-	//>     --include /home --exclude /*
-	//>     --include /home/craig --exclude /home/*
-	//>
-	//> It's more complex if the user wants to include multiple deep paths. For
-	//> example, if they want /home/craig and /var/log, then we need this mouthfull:
-	//>
-	//>     --include /home --include /var --exclude /*
-	//>     --include /home/craig --exclude /home/*
-	//>     --include /var/log --exclude /var/*
-	//>
-	//> To make this easier we do all the includes first and all of the excludes at
-	//> the end (hopefully they commute).
+	// > If the user wants to just include /home/craig, then we need to do create
+	// > include/exclude pairs at each level:
+	// >
+	// >     --include /home --exclude /*
+	// >     --include /home/craig --exclude /home/*
+	// >
+	// > It's more complex if the user wants to include multiple deep paths. For
+	// > example, if they want /home/craig and /var/log, then we need this mouthfull:
+	// >
+	// >     --include /home --include /var --exclude /*
+	// >     --include /home/craig --exclude /home/*
+	// >     --include /var/log --exclude /var/*
+	// >
+	// > To make this easier we do all the includes first and all of the excludes at
+	// > the end (hopefully they commute).
 
 	var inc, exc []string
 	incDone := make(map[string]struct{})
@@ -78,8 +76,8 @@ func (r *RsyncConfig) filter() (list []string) {
 	for _, incl := range r.Included {
 		file := filepath.Clean("/" + incl)
 		if file == "/" {
-			//> This is a special case: if the user specifies
-			//> "/" then just include it and don't exclude "/*".
+			// > This is a special case: if the user specifies
+			// > "/" then just include it and don't exclude "/*".
 			if _, ok := incDone[file]; !ok {
 				inc = append(inc, file)
 			}
@@ -90,7 +88,7 @@ func (r *RsyncConfig) filter() (list []string) {
 		elems := strings.Split(file[1:], "/")
 		for _, elem := range elems {
 			if elem == "" {
-				//> preserve a tailing slash
+				// > preserve a tailing slash
 				elem = "/"
 			}
 
@@ -115,8 +113,9 @@ func (r *RsyncConfig) filter() (list []string) {
 		list = append(list, "--exclude="+f)
 	}
 	for _, f := range r.Excluded {
-		//> just append additional exclude lists onto the end
+		// > just append additional exclude lists onto the end
 		list = append(list, "--exclude="+f)
 	}
-	return
+
+	return list
 }

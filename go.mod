@@ -1,6 +1,6 @@
 module github.com/digineo/zackup
 
-go 1.14
+go 1.15
 
 require (
 	github.com/digineo/goldflags v0.0.0-20191122002131-f4bfb8d086f0

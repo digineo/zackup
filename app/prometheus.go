@@ -7,7 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// promExport models an exported field
+// promExport models an exported field.
 type promExport struct {
 	name, help string
 	typ        prometheus.ValueType
@@ -20,7 +20,7 @@ type promExport struct {
 // promExporter exports Prometheus metrics.
 type promExporter []*promExport
 
-func init() {
+func init() { //nolint:gochecknoinits,funlen
 	prom := &promExporter{
 		&promExport{
 			name: "last_success",
@@ -117,7 +117,7 @@ func (f *promExport) Desc() *prometheus.Desc {
 	return f.desc
 }
 
-// Describe implements the prometheus.Collector interface
+// Describe implements the prometheus.Collector interface.
 func (e promExporter) Describe(c chan<- *prometheus.Desc) {
 	for _, f := range e {
 		c <- f.Desc()
@@ -125,9 +125,11 @@ func (e promExporter) Describe(c chan<- *prometheus.Desc) {
 	c <- version
 }
 
-// Collect implements the prometheus.Collector interface
+// Collect implements the prometheus.Collector interface.
 func (e promExporter) Collect(c chan<- prometheus.Metric) {
-	for _, m := range state.export() {
+	metrics := state.export()
+	for i := range state.export() {
+		m := metrics[i]
 		for _, f := range e {
 			val := f.value(&m)
 			c <- prometheus.MustNewConstMetric(f.desc, f.typ, val, m.Host)

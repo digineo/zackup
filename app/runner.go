@@ -82,7 +82,7 @@ func PerformBackup(job *config.JobConfig) {
 	}
 }
 
-// zfs create -p ds.Name
+// zfs create -p ds.Name.
 func (ds *dataset) create() error {
 	if err := zfs("create", "-p", ds.Name); err != nil {
 		return errors.Wrapf(err, "failed to zfs create %q", ds.Name)
@@ -90,7 +90,7 @@ func (ds *dataset) create() error {
 	return nil
 }
 
-// zfs snapshot ds.Name@time.RFC3339
+// zfs snapshot ds.Name@time.RFC3339.
 func (ds *dataset) snapshot() error {
 	now := time.Now().UTC()
 	name := fmt.Sprintf("%s@%s", ds.Name, now.Format(time.RFC3339))

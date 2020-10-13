@@ -117,6 +117,6 @@ var statusCmd = &cobra.Command{
 	},
 }
 
-func init() {
+func init() { //nolint:gochecknoinits
 	rootCmd.AddCommand(statusCmd)
 }

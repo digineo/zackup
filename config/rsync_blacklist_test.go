@@ -33,7 +33,7 @@ func TestBlacklist(t *testing.T) {
 		}
 	}
 
-	// these hold true, independant of bla.opt
+	// these hold true, independent of bla.opt
 	simpleCases := func() {
 		mustMatch("--long", true)
 		mustMatch("-s", true)

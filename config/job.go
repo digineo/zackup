@@ -11,7 +11,7 @@ type JobConfig struct {
 	PostScript Script `yaml:"post_script"` // from yaml file
 }
 
-// SSHConfig holds connection parameters
+// SSHConfig holds connection parameters.
 type SSHConfig struct {
 	User    string `yaml:"user"`    // defaults to "root"
 	Port    uint16 `yaml:"port"`    // defaults to 22
@@ -24,6 +24,7 @@ func (j *JobConfig) Host() string {
 }
 
 func (j *JobConfig) mergeGlobals(globals *JobConfig) {
+	//nolint:nestif
 	if globals.SSH != nil {
 		if j.SSH == nil {
 			dup := *globals.SSH
@@ -42,6 +43,7 @@ func (j *JobConfig) mergeGlobals(globals *JobConfig) {
 		}
 	}
 
+	//nolint:nestif
 	if globals.RSync != nil {
 		if j.RSync == nil {
 			dup := *globals.RSync

@@ -78,7 +78,7 @@ func (sc *schedule) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-// Next returns the next schedule time > t
+// Next returns the next schedule time > t.
 func (sc *schedule) Next(t *time.Time) time.Time {
 	y, mon, d := t.Date()
 	h, m, s := t.Clock()

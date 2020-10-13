@@ -17,7 +17,7 @@ func TestMergeConfigSSH(t *testing.T) {
 		}
 	}
 
-	for name, tc := range map[string]struct {
+	tests := map[string]struct {
 		victim   *SSHConfig
 		expected *SSHConfig
 	}{
@@ -41,7 +41,10 @@ func TestMergeConfigSSH(t *testing.T) {
 			&SSHConfig{Timeout: uintp(10)},
 			&SSHConfig{"root", 22, uintp(10)},
 		},
-	} {
+	}
+
+	for name := range tests {
+		tc := tests[name]
 		t.Run(name, func(t *testing.T) {
 			actual := &JobConfig{SSH: tc.victim}
 			actual.mergeGlobals(&JobConfig{
@@ -52,7 +55,7 @@ func TestMergeConfigSSH(t *testing.T) {
 	}
 }
 
-func TestMergeConfigRSync(t *testing.T) {
+func TestMergeConfigRSync(t *testing.T) { //nolint:funlen
 	defaultConf := func() *RsyncConfig {
 		return &RsyncConfig{
 			Included:  []string{"/home"},
@@ -61,7 +64,7 @@ func TestMergeConfigRSync(t *testing.T) {
 		}
 	}
 
-	for name, tc := range map[string]struct {
+	tests := map[string]struct {
 		victim   *RsyncConfig
 		expected *RsyncConfig
 	}{
@@ -141,7 +144,10 @@ func TestMergeConfigRSync(t *testing.T) {
 				OverrideGlobalArguments: true,
 			},
 		},
-	} {
+	}
+
+	for name := range tests {
+		tc := tests[name]
 		t.Run(name, func(t *testing.T) {
 			actual := &JobConfig{RSync: tc.victim}
 			actual.mergeGlobals(&JobConfig{
@@ -160,7 +166,7 @@ func TestMergeConfigScripts(t *testing.T) {
 		}
 	}
 
-	for name, tc := range map[string]struct {
+	tests := map[string]struct {
 		victim   Script
 		expected Script
 	}{
@@ -182,7 +188,10 @@ func TestMergeConfigScripts(t *testing.T) {
 				scripts: []string{"echo global scripts", "echo local scripts"},
 			},
 		},
-	} {
+	}
+
+	for name := range tests {
+		tc := tests[name]
 		t.Run(name+".pre", func(t *testing.T) {
 			actual := &JobConfig{PreScript: tc.victim}
 			actual.mergeGlobals(&JobConfig{

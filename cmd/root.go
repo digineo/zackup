@@ -23,7 +23,7 @@ var (
 	glEndpoint string
 )
 
-// rootCmd represents the base command when called without any subcommands
+// rootCmd represents the base command when called without any subcommands.
 var rootCmd = &cobra.Command{
 	Use:     "zackup",
 	Short:   "A small utility to backup remote hosts into local ZFS datasets.",
@@ -33,13 +33,14 @@ var rootCmd = &cobra.Command{
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	defer gl.Flush()
 	if err := rootCmd.Execute(); err != nil {
+		gl.Flush()
 		os.Exit(1)
 	}
+	gl.Flush()
 }
 
-func init() {
+func init() { //nolint:gochecknoinits
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVarP(&treeRoot, "root", "r", treeRoot, "config root `directory`")
 	rootCmd.PersistentFlags().CountVarP(&verbosity, "verbose", "v", "increase log level (specify once for debug, twice for trace level messages)")

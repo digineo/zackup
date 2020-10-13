@@ -17,11 +17,11 @@ var blacklistArgs = []blacklistArg{
 	{long: `--verbose`, short: `-v`},           // should not be set multiple time (noise)
 	{long: `--delete*`},                        // we're enforcing --delete --delete-excluded --delete-delay
 	{long: `--del`},                            // shorthand for some other --delete-* flags
-	{long: `--rsh`, short: `-e`, opt: true},    // is constructed seperately
+	{long: `--rsh`, short: `-e`, opt: true},    // is constructed separately
 	{long: `--quiet`, short: `-q`},             // we actually want some output
 	{long: `--force`},                          // irrelevant when --delete is set
-	{long: `--include`, opt: true},             // is constructed seperately
-	{long: `--exclude`, opt: true},             // is constructed seperately
+	{long: `--include`, opt: true},             // is constructed separately
+	{long: `--exclude`, opt: true},             // is constructed separately
 	{long: `--filter`, short: `-f`, opt: true}, // overrides --include/--exclude
 	{long: `--itemize-changes`, short: `-i`},   // defines a machine readable output
 	{long: `--out-format`, opt: true},          // would override --itemize-changes
@@ -54,7 +54,7 @@ func (bla *blacklistArg) Matches(arg string) (bool, int) {
 		if arg == bla.long {
 			return true, bla.n()
 		}
-		if strings.IndexRune(bla.long, '*') > -1 {
+		if strings.ContainsRune(bla.long, '*') {
 			// assume the user knows what he's doing
 			return match.Match(arg, bla.long), bla.n()
 		}

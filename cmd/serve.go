@@ -10,11 +10,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	listenAddress = "127.0.0.1:3000"
-)
+var listenAddress = "127.0.0.1:3000"
 
-// serveCmd represents the serve command
+// serveCmd represents the serve command.
 var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Starts zackup as deamon.",
@@ -30,7 +28,7 @@ var serveCmd = &cobra.Command{
 		srv := app.NewHTTP(listenAddress)
 		go srv.Start()
 
-		ch := make(chan os.Signal)
+		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 		log.WithField("signal", (<-ch).String()).Warn("Stopping HTTP server")
 		sched.Stop()
@@ -39,7 +37,7 @@ var serveCmd = &cobra.Command{
 	},
 }
 
-func init() {
+func init() { //nolint:gochecknoinits
 	rootCmd.AddCommand(serveCmd)
 	serveCmd.PersistentFlags().StringVarP(&listenAddress, "listen", "l", listenAddress, "`address` to listen on")
 }

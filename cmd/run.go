@@ -4,7 +4,7 @@ import "github.com/spf13/cobra"
 
 var runParallel = 0
 
-// runCmd represents the run command
+// runCmd represents the run command.
 var runCmd = &cobra.Command{
 	Use:   "run [host [...]]",
 	Short: "Creates backups and stores them in a local per-host ZFS dataset",
@@ -29,7 +29,7 @@ var runCmd = &cobra.Command{
 	},
 }
 
-func init() {
+func init() { //nolint:gochecknoinits
 	rootCmd.AddCommand(runCmd)
 	runCmd.PersistentFlags().IntVarP(&runParallel, "parallel", "P", 0,
 		"Run at most `N` jobs parallel (overrides service config value, if > 0)")

@@ -10,7 +10,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-// HostConfigs maps hostnames to config
+// HostConfigs maps hostnames to config.
 type HostConfigs map[string]*JobConfig
 
 func pathToHostVariantA(name string) string {

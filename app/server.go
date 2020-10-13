@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"html/template"
 	"math"
@@ -22,7 +23,7 @@ type HTTP interface {
 	// Start will start the HTTP server.
 	Start()
 
-	// Stop will gracefull shut down the HTTP server.
+	// Stop will graceful shut down the HTTP server.
 	Stop()
 }
 
@@ -56,7 +57,7 @@ func NewHTTP(listen string) HTTP {
 
 func (srv *server) Start() {
 	err := srv.ListenAndServe()
-	if err != nil && err != http.ErrServerClosed {
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		srv.logger.WithError(err).Error("unexpected shutdown")
 	}
 }
@@ -91,12 +92,11 @@ func (srv *server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 func tplFmtTime(t interface{}, human bool) template.HTML {
 	var val *time.Time
-	switch t.(type) {
+	switch ref := t.(type) {
 	case time.Time:
-		ref := t.(time.Time)
 		val = &ref
 	case *time.Time:
-		val = t.(*time.Time)
+		val = ref
 	default:
 		return template.HTML("invalid date")
 	}
@@ -122,12 +122,11 @@ func tplFmtTime(t interface{}, human bool) template.HTML {
 
 func tplFmtDuration(d interface{}) template.HTML {
 	var val *time.Duration
-	switch d.(type) {
+	switch ref := d.(type) {
 	case time.Duration:
-		ref := d.(time.Duration)
 		val = &ref
 	case *time.Duration:
-		val = d.(*time.Duration)
+		val = ref
 	default:
 		return template.HTML("invalid duration")
 	}
@@ -149,8 +148,11 @@ func tplStatusClass(m HostMetrics) string {
 		return "table-success"
 	case StatusRunning:
 		return "table-warning"
+	case StatusPrimed, StatusUnknown:
+		fallthrough
+	default:
+		return ""
 	}
-	return ""
 }
 
 func tplStatusIcon(m HostMetrics) string {
@@ -163,8 +165,11 @@ func tplStatusIcon(m HostMetrics) string {
 		return "fas fa-spinner fa-pulse"
 	case StatusPrimed:
 		return "far fa-clock"
+	case StatusUnknown:
+		fallthrough
+	default:
+		return "fas fa-question"
 	}
-	return "fas fa-question"
 }
 
 func tplUnavailable() template.HTML {

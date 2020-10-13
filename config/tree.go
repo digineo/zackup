@@ -42,7 +42,7 @@ type tree struct {
 	sync.RWMutex
 }
 
-// NewTree returns an empty Tree
+// NewTree returns an empty Tree.
 func NewTree(root string) Tree {
 	return &tree{root: root}
 }
@@ -100,7 +100,7 @@ func (t *tree) Host(name string) *JobConfig {
 	return nil
 }
 
-// Reload (re-) reads the Tree.Root directory into memory
+// Reload (re-) reads the Tree.Root directory into memory.
 func (t *tree) Reload() error {
 	t.Lock()
 	defer t.Unlock()

@@ -6,6 +6,8 @@ import (
 )
 
 func TestMetricsStatus(t *testing.T) {
+	t.Parallel()
+
 	var t0 time.Time
 	t1 := time.Date(2018, time.December, 9, 12, 0, 0, 0, time.UTC)
 	t2 := t1.Add(time.Hour)
