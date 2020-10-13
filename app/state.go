@@ -156,7 +156,7 @@ func (s *State) loadHost(host string) error {
 		dataset,
 	}
 
-	o, e, err := execProgram("zfs", args...)
+	o, e, err := execZFS(args...)
 	if err != nil {
 		// dataset does not exit, ignore
 		f := appendStdlogs(logrus.Fields{
@@ -264,7 +264,7 @@ func storeStart(host string, t time.Time) error {
 	}
 	log.WithFields(f).
 		Debugf("set properties for host %q", host)
-	o, e, err := execProgram("zfs", args...)
+	o, e, err := execZFS(args...)
 	if err != nil {
 		f[logrus.ErrorKey] = err
 		log.WithFields(appendStdlogs(f, o, e)).
@@ -291,7 +291,7 @@ func storeResult(host string, success bool, t time.Time, dur time.Duration) erro
 		"args":    args,
 	}
 	log.WithFields(f).Debugf("set properties for host %q", host)
-	o, e, err := execProgram("zfs", args...)
+	o, e, err := execZFS(args...)
 	if err != nil {
 		f[logrus.ErrorKey] = err
 		log.WithFields(appendStdlogs(f, o, e)).

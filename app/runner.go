@@ -102,8 +102,7 @@ func (ds *dataset) snapshot() error {
 }
 
 func zfs(args ...string) error {
-	o, e, err := execProgram("zfs", args...)
-
+	o, e, err := execZFS(args...)
 	if err != nil {
 		f := appendStdlogs(logrus.Fields{
 			logrus.ErrorKey: err,
@@ -115,8 +114,8 @@ func zfs(args ...string) error {
 	return err
 }
 
-func execProgram(prog string, args ...string) (stdout, stderr *bytes.Buffer, err error) {
-	cmd := exec.Command(prog, args...)
+func execZFS(args ...string) (stdout, stderr *bytes.Buffer, err error) {
+	cmd := exec.Command("zfs", args...)
 
 	var o, e bytes.Buffer
 	cmd.Stdout = &o
