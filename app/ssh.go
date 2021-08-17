@@ -37,7 +37,7 @@ func newSSHMaster(host string, cfg *config.SSHConfig) *sshMaster {
 		user: cfg.User,
 		port: cfg.Port,
 
-		controlPath: filepath.Join(MountBase, ".zackup_%h_%C"),
+		controlPath: filepath.Join(MountBase, ".zackup_%C"),
 		mountPath:   filepath.Join(MountBase, host),
 
 		mu: &sync.Mutex{},
