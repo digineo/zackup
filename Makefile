@@ -12,6 +12,10 @@ zackup.freebsd: $(DEPS)
 zackup.linux: $(DEPS)
 	GOOS=linux GOARCH=amd64 go build -ldflags "$(GOLDFLAGS)" -o $@
 
+.PHONY: release
+release:
+	goreleaser --rm-dist --auto-snapshot
+
 .PHONY: clean
 clean:
-	rm -rf zackup.freebsd zackup.linux
+	rm -rf zackup.freebsd zackup.linux dist

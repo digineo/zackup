@@ -1,0 +1,11 @@
+[Unit]
+Description=zackup Server
+After=network.target
+
+[Service]
+ExecStart=/usr/sbin/zackup serve --listen '[::]:3000'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

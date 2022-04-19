@@ -1,0 +1,69 @@
+project_name: zackup
+
+env:
+  # Build without CGO to don't depend on specific glibc versions
+  - CGO_ENABLED=0
+
+builds:
+  - goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+
+archives:
+- format: binary
+
+nfpms:
+  # note that this is an array of nfpm configs
+  -
+    # Your app's vendor.
+    # Default is empty.
+    vendor: Digineo GmbH
+
+    # Your app's maintainer (probably you).
+    # Default is empty.
+    maintainer: Dominik Menke <dm+github@digineo.de>
+
+    # Your app's description.
+    # Default is empty.
+    description: Zackup
+
+    # Formats to be generated.
+    formats:
+      - deb
+
+    # Override default /usr/local/bin destination for binaries
+    bindir: /usr/sbin
+
+    # Section.
+    section: default
+
+    # Priority.
+    priority: extra
+
+    dependencies:
+      - rsync
+      - zfsutils-linux
+
+    # Contents to add to the package.
+    # GoReleaser will automatically add the binaries.
+    contents:
+      - src: debian/zackup.service
+        dst: /lib/systemd/system/zackup.service
+
+      - src: testdata/config.yml
+        dst: /etc/zackup/config.yml
+
+      - src: testdata/globals.yml
+        dst: /etc/zackup/globals.yml
+
+    # Scripts to execute during the installation of the package.
+    # Keys are the possible targets during the installation process
+    # Values are the paths to the scripts which will be executed
+    scripts:
+      postinstall: "debian/postinstall.sh"
+      preremove: "debian/preremove.sh"
+      postremove: "debian/postremove.sh"
