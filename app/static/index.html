@@ -1,0 +1,122 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<title>zackup overview</title>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css"
+		integrity="sha256-YLGeXaapI0/5IgZopewRJcFXomhRMlYYjugPLSyNjTY=" crossorigin="anonymous">
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.8.1/css/all.min.css"
+		integrity="sha256-7rF6RaSKyh16288E3hVdzQtHyzatA2MQRGu0cf6pqqM=" crossorigin="anonymous">
+	<script>
+		function toggleTimes() {
+			const times = document.querySelectorAll("tbody time")
+			for (let i = 0, len = times.length; i < len; ++i) {
+				const el = times[i]
+				if (!el.dataset.text) {
+					el.dataset.text = el.innerText
+				}
+				if (el.innerText === el.dataset.text) {
+					el.innerText = el.getAttribute("title")
+				} else {
+					el.innerText = el.dataset.text
+				}
+			}
+		}
+
+		document.addEventListener("DOMContentLoaded", () => {
+			const btn = document.querySelector("button.js-toggle-times")
+			if (btn) {
+				btn.addEventListener("click", ev => {
+					ev.preventDefault()
+					toggleTimes()
+				})
+			}
+		})
+	</script>
+	<style>
+	.progress {
+		height: 3px;
+		width: 150px;
+	}
+	</style>
+</head>
+
+<body>
+	<main class="container-fluid">
+		<h1>zackup overview</h1>
+		<table class="table table-sm table-hover table-striped">
+			<caption class="small">
+				<button class="btn btn-sm btn-outline-secondary js-toggle-times float-right" type="button">
+					Toggle times
+				</button>
+				Date: {{ fmtTime .Time false }}
+				<br>
+				<a href="https://github.com/digineo/zackup">Digineo Zackup</a>
+				&bull; <a href="https://github.com/digineo/zackup/issues">Issues</a>
+			</caption>
+			<thead>
+				<tr>
+					<th>Host</th>
+					<th>Status</th>
+					<th>last started</th>
+					<th colspan="2" class="text-center">last succeeded</th>
+					<th colspan="2" class="text-center">last failed</th>
+					<th>scheduled for</th>
+					<th>Space used</th>
+					<th class="text-right">Compression factor</th>
+				</tr>
+			</thead>
+			<tbody>
+			{{ range .Hosts }}
+				<tr>
+					<td><tt>{{ .Host }}</tt></td>
+					<td class="{{ statusClass . }}">
+						<i class="{{ statusIcon . }} fa-fw"></i>&nbsp;{{ .Status }}
+					</td>
+					{{ if .StartedAt.IsZero }}
+						<td>{{ na }}</td>
+						<td class="text-center" colspan="2">{{ na }}</td>
+						<td class="text-center" colspan="2">{{ na }}</td>
+						<td>{{ na }}</td>
+						<td>{{ na }}</td>
+						<td class="text-right">{{ na }}</td>
+					{{ else }}
+						<td>{{ fmtTime .StartedAt true }}</td>
+						{{ if .SucceededAt }}
+							<td class="text-right">{{ fmtTime .SucceededAt true }}</td>
+							<td><span class="badge badge-secondary">{{ fmtDuration .SuccessDuration }}</span></td>
+						{{ else }}
+							<td colspan="2" class="text-center">{{ na }}</td>
+						{{ end }}
+						{{ if .FailedAt }}
+							<td class="text-right">{{ fmtTime .FailedAt true }}</td>
+							<td><span class="badge badge-secondary">{{ fmtDuration .FailureDuration }}</span></td>
+						{{ else }}
+							<td colspan="2" class="text-center">{{ na }}</td>
+						{{ end }}
+						<td>
+							{{ if .ScheduledAt }}
+								{{ fmtTime .ScheduledAt true }}
+							{{ else }}
+								{{ na }}
+							{{ end }}
+						</td>
+						<td title="{{ usageDetails . }}">
+							<div class="progress">
+								<div class="progress-bar bg-success" style="width:{{ percentUsage . .SpaceUsedByDataset }}%"></div>
+								<div class="progress-bar bg-warning" style="width:{{ percentUsage . .SpaceUsedBySnapshots }}%"></div>
+								<div class="progress-bar bg-info"    style="width:{{ percentUsage . .SpaceUsedByChildren }}%"></div>
+								<div class="progress-bar bg-danger"  style="width:{{ percentUsage . .SpaceUsedByRefReservation }}%"></div>
+							</div>
+							<small>Total: {{ humanBytes .SpaceUsedTotal }}</small>
+						</td>
+						<td class="text-right">{{ printf "%0.2f" .CompressionFactor }}</td>
+					{{ end }}
+				</tr>
+			{{ end }}
+			</tbody>
+		</table>
+	</main>
+</body>
+</html>
