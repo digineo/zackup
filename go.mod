@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/digineo/goldflags v0.0.0-20191122002131-f4bfb8d086f0
-	github.com/dustin/go-humanize v1.0.0
+	github.com/dustin/go-humanize v1.0.1
 	github.com/gorilla/mux v1.8.0
 	github.com/k0kubun/colorstring v0.0.0-20150214042306-9440f1994b88 // indirect
 	github.com/k0kubun/pp v3.0.1+incompatible
