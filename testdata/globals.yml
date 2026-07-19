@@ -4,6 +4,12 @@ ssh:
   port: 22
   identity_file: /etc/zackup/id_rsa.pub
 
+retention:
+  daily: 14
+  weekly: 4
+  monthly: 6
+  yearly: 5
+
 rsync:
   included:
   - /etc
