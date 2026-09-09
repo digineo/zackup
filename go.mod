@@ -1,6 +1,6 @@
 module github.com/digineo/zackup
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/digineo/goldflags v0.0.0-20191122002131-f4bfb8d086f0
@@ -19,7 +19,7 @@ require (
 	github.com/tidwall/match v1.2.0
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
 	golang.org/x/crypto v0.54.0 // indirect
-	golang.org/x/sys v0.47.0
+	golang.org/x/sys v0.48.0
 	golang.org/x/term v0.45.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/gemnasium/logrus-graylog-hook.v2 v2.0.7
