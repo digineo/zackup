@@ -1,12 +1,10 @@
 package main
 
 import (
-	"math/rand"
 	"os"
 	"os/signal"
 	"runtime/pprof"
 	"syscall"
-	"time"
 
 	"github.com/digineo/zackup/cmd"
 )
@@ -14,12 +12,11 @@ import (
 func main() {
 	go handleSIGUSRx()
 
-	rand.Seed(time.Now().UnixNano())
 	cmd.Execute()
 }
 
 func handleSIGUSRx() {
-	sig := make(chan os.Signal)
+	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGUSR1)
 
 	for range sig {
