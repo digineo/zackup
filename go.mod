@@ -19,7 +19,7 @@ require (
 	github.com/tidwall/match v1.2.0
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
 	golang.org/x/crypto v0.57.0 // indirect
-	golang.org/x/sys v0.48.0
+	golang.org/x/sys v0.49.0
 	golang.org/x/term v0.46.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/gemnasium/logrus-graylog-hook.v2 v2.0.7
